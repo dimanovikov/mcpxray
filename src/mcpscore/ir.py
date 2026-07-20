@@ -106,6 +106,8 @@ class McpServer:
     resources: list[Resource] = field(default_factory=list)
     prompts: list[Prompt] = field(default_factory=list)
     dependencies: dict[str, str] = field(default_factory=dict)  # name -> spec
+    sources: dict[str, str] = field(default_factory=dict)  # source_path -> text
+    lockfiles: list[str] = field(default_factory=list)  # lockfile basenames found
     diagnostics: list[Diagnostic] = field(default_factory=list)
     source_mode: str = SOURCE_STATIC  # how the IR was obtained
 

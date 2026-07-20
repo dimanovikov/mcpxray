@@ -1,0 +1,19 @@
+{
+  "tools": [
+    {
+      "name": "loose",
+      "description": "A tool with a weak, unvalidatable schema.",
+      "inputSchema": {"type": "object", "properties": {"x": {}}}
+    },
+    {
+      "name": "union_tool",
+      "description": "A tool using oneOf, which strict clients reject.",
+      "inputSchema": {
+        "type": "object",
+        "oneOf": [{"type": "string"}],
+        "properties": {"y": {"type": "string"}},
+        "required": ["y"]
+      }
+    }
+  ]
+}

@@ -19,7 +19,13 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 from pathlib import Path
+
+try:  # Python 3.11+
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10
+    import tomli as tomllib  # type: ignore[no-redef]
 
 from mcpscore.extract.base import Extractor, register_extractor
 from mcpscore.ir import SOURCE_STATIC, McpServer, ServerMeta, Tool
@@ -172,16 +178,51 @@ def _extract_function(
 
 
 def _extract_file(path: Path, server: McpServer) -> None:
+    text = path.read_text(encoding="utf-8")
+    posix = path.as_posix()
+    server.sources[posix] = text
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        tree = ast.parse(text, filename=str(path))
     except SyntaxError:
         return  # unparseable file — leave to rules/CI to surface separately
-    posix = path.as_posix()
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             tool = _extract_function(node, posix)
             if tool is not None:
                 server.tools.append(tool)
+
+
+# --- project metadata (dependencies, lockfiles) for supply-chain rules -------
+
+_DEP_RE = re.compile(r"^\s*([A-Za-z0-9_.-]+)\s*(.*)$")
+_LOCKFILES = {"uv.lock", "poetry.lock", "Pipfile.lock", "pdm.lock", "requirements.txt"}
+
+
+def _split_dep(dep: str) -> tuple[str, str]:
+    m = _DEP_RE.match(dep)
+    if not m:
+        return "", ""
+    return m.group(1), m.group(2).strip()
+
+
+def _load_pyproject(root: Path, server: McpServer) -> None:
+    pyproject = root / "pyproject.toml"
+    if not pyproject.is_file():
+        return
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, OSError):
+        return
+    for dep in (data.get("project") or {}).get("dependencies") or []:
+        name, spec = _split_dep(str(dep))
+        if name:
+            server.dependencies[name] = spec
+
+
+def _find_lockfiles(root: Path, server: McpServer) -> None:
+    for name in _LOCKFILES:
+        if (root / name).is_file():
+            server.lockfiles.append(name)
 
 
 def _iter_python_files(root: Path) -> list[Path]:
@@ -219,4 +260,7 @@ class PythonExtractor(Extractor):
         )
         for f in files:
             _extract_file(f, server)
+        root = path if path.is_dir() else path.parent
+        _load_pyproject(root, server)
+        _find_lockfiles(root, server)
         return server
