@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import ast
+import textwrap
 from pathlib import Path
 
 from mcpscore.extract import extractor_for, extractors
 from mcpscore.extract.python_static import (
     PythonExtractor,
     _annotation_to_schema,
+    _extract_function,
 )
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "servers"
@@ -76,6 +78,58 @@ class TestPythonExtractor:
             assert t.source_path.endswith("server.py")
             assert t.line is not None and t.line > 0
             assert not t.runtime_only
+
+
+# --- MCP context parameter is not user input ---------------------------------
+
+
+class TestContextParam:
+    """FastMCP injects a `Context` param; it must stay out of the input schema."""
+
+    @staticmethod
+    def _tool(src: str):
+        tree = ast.parse(textwrap.dedent(src))
+        fn = next(
+            n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        )
+        return _extract_function(fn, "x.py")
+
+    def test_ctx_by_name_excluded(self):
+        tool = self._tool(
+            """
+            @mcp.tool()
+            def f(ctx, a: int, b: int = 0):
+                \"\"\"doc\"\"\"
+                return a + b
+            """
+        )
+        props = tool.input_schema["properties"]
+        assert "ctx" not in props
+        assert set(props) == {"a", "b"}
+        assert tool.input_schema["required"] == ["a"]  # b has a default
+
+    def test_typed_context_excluded(self):
+        tool = self._tool(
+            """
+            @mcp.tool()
+            def g(ctx: Context, x: str) -> str:
+                \"\"\"doc\"\"\"
+                return x
+            """
+        )
+        assert "ctx" not in tool.input_schema["properties"]
+        assert tool.input_schema["required"] == ["x"]
+
+    def test_qualified_context_type_excluded(self):
+        tool = self._tool(
+            """
+            @mcp.tool()
+            def h(request: mcp.Context, x: str) -> str:
+                \"\"\"doc\"\"\"
+                return x
+            """
+        )
+        assert "request" not in tool.input_schema["properties"]
 
     def test_applies_to(self):
         ext = PythonExtractor()

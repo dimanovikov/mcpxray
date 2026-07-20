@@ -1,6 +1,6 @@
 [project]
 name = "mcpscore"
-version = "0.0.0"
+version = "0.1.0"
 description = "Static linter + 0-100 scorecard for MCP servers. Catches tool poisoning, secret leaks, schema drift and more — locally, deterministically, in CI."
 readme = "README.md"
 authors = [

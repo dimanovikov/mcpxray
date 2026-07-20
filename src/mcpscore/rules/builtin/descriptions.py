@@ -86,7 +86,7 @@ class DescriptionHygiene(Rule):
                 yield Diagnostic(
                     self.id,
                     self.severity,
-                    f"tool '{tool.name}': missing description — model can't decide when to call it",
+                    f"tool '{tool.name}': no description; model can't decide when to call it",
                     tool=tool.name,
                     file=tool.source_path,
                     line=tool.line,

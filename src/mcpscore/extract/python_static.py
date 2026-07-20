@@ -132,6 +132,20 @@ def _decorator_meta(node: ast.AST) -> tuple[str | None, str | None]:
     return name, desc
 
 
+def _looks_like_context(arg_name: str, annotation: ast.AST | None) -> bool:
+    """True if this parameter is the MCP request context (framework-injected, not user input).
+
+    FastMCP injects a ``Context`` object into every tool; by convention it is named
+    ``ctx`` and/or typed ``Context`` (or ``mcp.Context``). Like the SDK, we exclude
+    it from the input schema so it isn't mistaken for a user-supplied argument.
+    """
+    if arg_name == "ctx":
+        return True
+    if isinstance(annotation, ast.Name):
+        return annotation.id == "Context"
+    return isinstance(annotation, ast.Attribute) and annotation.attr == "Context"
+
+
 def _build_input_schema(func: ast.FunctionDef | ast.AsyncFunctionDef) -> dict:
     props: dict[str, dict] = {}
     required: list[str] = []
@@ -142,13 +156,15 @@ def _build_input_schema(func: ast.FunctionDef | ast.AsyncFunctionDef) -> dict:
     ndef = len(defaults)
     npos = len(posargs)
     for i, a in enumerate(posargs):
-        if a.arg in ("self", "cls"):
+        if a.arg in ("self", "cls") or _looks_like_context(a.arg, a.annotation):
             continue
         props[a.arg] = _annotation_to_schema(a.annotation)
         if i < npos - ndef:
             required.append(a.arg)
 
     for i, a in enumerate(args.kwonlyargs):
+        if _looks_like_context(a.arg, a.annotation):
+            continue
         props[a.arg] = _annotation_to_schema(a.annotation)
         if args.kw_defaults[i] is None:
             required.append(a.arg)

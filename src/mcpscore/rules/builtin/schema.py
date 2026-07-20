@@ -24,7 +24,7 @@ class WeakSchema(Rule):
                 yield Diagnostic(
                     self.id,
                     self.severity,
-                    f"tool '{tool.name}': schema has no required parameters — accepts anything",
+                    f"tool '{tool.name}': schema has no required parameters -- accepts anything",
                     tool=tool.name,
                     file=tool.source_path,
                     line=tool.line,
@@ -34,7 +34,7 @@ class WeakSchema(Rule):
                     yield Diagnostic(
                         self.id,
                         self.severity,
-                        f"tool '{tool.name}': parameter '{pname}' has no type — unvalidatable",
+                        f"tool '{tool.name}': parameter '{pname}' has no type -- unvalidatable",
                         tool=tool.name,
                         file=tool.source_path,
                         line=tool.line,
