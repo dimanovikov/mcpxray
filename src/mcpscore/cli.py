@@ -7,6 +7,7 @@ pipeline. `scan` lints and reports; `score` collapses to a 0-100 number;
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import typer
@@ -15,11 +16,14 @@ from mcpscore import __version__
 from mcpscore.badge import badge_svg
 from mcpscore.extract import extractor_for
 from mcpscore.extract.manifest import ManifestExtractor
-from mcpscore.ir import SEVERITY_ERROR, McpServer
+from mcpscore.ir import SEVERITY_ERROR, SOURCE_STATIC, McpServer, ServerMeta
 from mcpscore.report import SUPPORTED_FORMATS, render
+from mcpscore.report.card import render_verdict
 from mcpscore.rules import run_all
 from mcpscore.score import ScoreResult
 from mcpscore.score import score as score_doc
+from mcpscore.source import ResolvedSource, SourceError, resolve_target
+from mcpscore.verdict import verdict
 
 app = typer.Typer(
     name="mcpscore",
@@ -54,6 +58,69 @@ def _analyze(path: Path | None, manifest: Path | None) -> tuple[McpServer, Score
     doc = _extract(path, manifest)
     run_all(doc)
     return doc, score_doc(doc)
+
+
+def _analyze_graceful(src: ResolvedSource) -> tuple[McpServer, ScoreResult]:
+    """Like :func:`_analyze`, but never hard-exits on "no extractor matched".
+
+    When no extractor applies (a non-Python repo, or a tree with no MCP tools),
+    an empty static :class:`~mcpscore.ir.McpServer` is synthesized so the verdict
+    engine can produce an honest UNKNOWN card instead of the exit-2 that ``scan``
+    raises. Leaves ``_extract`` (and the 17 CLI tests that depend on it) untouched.
+    """
+    if src.manifest is not None:
+        if not src.manifest.is_file():
+            typer.echo(f"error: manifest not found: {src.manifest}", err=True)
+            raise typer.Exit(code=2)
+        doc = ManifestExtractor().extract(src.manifest)
+    else:
+        path = src.path if src.path is not None else Path.cwd()
+        extractor = extractor_for(path)
+        if extractor is None:
+            doc = McpServer(
+                meta=ServerMeta(name=path.name, language=None, path=str(path)),
+                source_mode=SOURCE_STATIC,
+            )
+        else:
+            doc = extractor.extract(path)
+    run_all(doc)
+    return doc, score_doc(doc)
+
+
+@app.command()
+def check(
+    target: str = typer.Argument(None, help="GitHub URL or local path to the MCP server source."),
+    manifest: Path = typer.Option(
+        None, "--manifest", help="Captured tools/list JSON dump instead of source/URL."
+    ),
+    details: bool = typer.Option(
+        False, "--details", "-v", help="Also print the full finding list."
+    ),
+    fail_under: int = typer.Option(
+        0, "--fail-under", help="Gate: exit 1 if the score is below N (CI mode)."
+    ),
+) -> None:
+    """Friendly safety check: is this MCP server safe to install?"""
+    try:
+        resolved = resolve_target(target, manifest)
+    except SourceError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from None
+
+    try:
+        doc, score_result = _analyze_graceful(resolved)
+    finally:
+        if resolved.cleanup is not None:
+            try:
+                resolved.cleanup.cleanup()
+            except OSError:  # git may briefly hold pack-locks on Windows
+                shutil.rmtree(resolved.cleanup.name, ignore_errors=True)
+
+    v = verdict(doc, score_result)
+    typer.echo(render_verdict(v, doc=doc, score_result=score_result, details=details))
+
+    if v.tier == "danger" or not score_result.passed(fail_under):
+        raise typer.Exit(code=1)
 
 
 @app.command()

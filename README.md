@@ -1,14 +1,16 @@
 # mcpscore
 
-**Static linter + 0–100 scorecard for MCP servers.** `mcpscore` scans an MCP server's source (or a captured `tools/list` manifest) and flags tool poisoning, leaked secrets, dangerous capabilities, weak schemas and more — **locally, deterministically, in CI**. One score, one badge.
+**Static linter + 0–100 scorecard for MCP servers.** `mcpscore` scans an MCP server's source (or a captured `tools/list` manifest) and flags tool poisoning, leaked secrets, dangerous capabilities, weak schemas and more — **locally, deterministically, in CI**. Point it at a GitHub URL or a local path and get a plain-language verdict — 🟢 ok / 🟡 caution / 🔴 danger — plus a 0–100 score and an SVG badge.
 
 > MCP is the fastest-growing dev protocol since GraphQL (~97M SDK downloads/month), yet 7%+ of servers ship with vulnerabilities and the OWASP MCP Top 10 is a list, not a tool. `mcpscore` is the missing `npm audit` + OpenSSF Scorecard for MCP — static, local-first, OSS.
 
 ## Status
 
-✅ **v0.1.0** — Python static extractor + manifest extractor, rules MCP101/102/103/104/106/107/108, CLI (`scan`/`score`/`badge`/`version`), plain/json/github/sarif reports, 0–100 score with error cap, SVG badge, plugin API. 70 tests, 94% coverage.
+✅ **v0.1.0** — Python static extractor + manifest extractor, rules MCP101/102/103/104/106/107/108, `scan`/`score`/`badge`/`version`, plain/json/github/sarif reports, 0–100 score with error cap, SVG badge, plugin API. 73 tests, 94% coverage.
 
-TypeScript extraction, runtime `tools/list` capture, and rules MCP105 (schema/impl drift) / MCP109 (transport auth) land in v0.2.
+🚧 **dev (→ v0.2):** friendly `check` command — point at a **GitHub URL** or a local path, get a traffic-light verdict (🟢/🟡/🔴/⚪) + a plain-language recommendation; new `card` report format. 120+ tests.
+
+TypeScript static extraction, runtime `tools/list` capture, and rules MCP105 (schema/impl drift) / MCP109 (transport auth) land in v0.2.
 
 ## Install
 
@@ -22,19 +24,22 @@ Requires Python ≥ 3.10.
 ## Quick start
 
 ```bash
-# Lint a FastMCP server from source — findings + score
-mcpscore scan path/to/my-mcp-server
+# Is this MCP server safe to install? Point mcpscore at a GitHub URL or a local path.
+mcpscore check https://github.com/owner/repo
+mcpscore check path/to/my-mcp-server
 
-# CI gate: fail the build on any ERROR finding
+# Verdict + the full finding list
+mcpscore check path/to/my-mcp-server --details
+
+# Not a Python server? Hand mcpscore a captured tools/list dump (any language)
+mcpscore check --manifest tools-list.json
+
+# --- power users / CI -----------------------------------------------------
+# Lint and print findings (CI gate: --check exits 1 on any ERROR)
 mcpscore scan path/to/my-mcp-server --check -f github
-
-# Just the score (0–100), fail below a bar
+# Just the 0–100 score, fail below a bar
 mcpscore score path/to/my-mcp-server --fail-under 80
-
-# No source? Lint a captured tools/list dump from any language
-mcpscore scan --manifest tools-list.json
-
-# Embed a badge in your README
+# Embed an SVG score badge in your README
 mcpscore badge path/to/my-mcp-server -o docs/score.svg
 ```
 
@@ -42,10 +47,26 @@ mcpscore badge path/to/my-mcp-server -o docs/score.svg
 
 | Command | Purpose |
 | --- | --- |
-| `mcpscore scan [PATH] [--manifest FILE] [-f plain\|json\|github\|sarif] [--check]` | Lint a server and print findings. `--check` exits 1 on any ERROR (CI gate). |
+| `mcpscore check <URL \| PATH> [--manifest FILE] [--details\|-v] [--fail-under N]` | **Friendly safety verdict** (🟢/🟡/🔴/⚪) + recommendation. Clones a GitHub URL automatically; exits 1 on 🔴 danger or below `--fail-under`. |
+| `mcpscore scan [PATH] [--manifest FILE] [-f plain\|json\|github\|sarif\|card] [--check]` | Lint a server and print findings. `--check` exits 1 on any ERROR (CI gate). |
 | `mcpscore score [PATH] [--manifest FILE] [--fail-under N]` | Print the 0–100 score and grade; exit 1 below `--fail-under`. |
 | `mcpscore badge [PATH \| --score N] [-o FILE]` | Render an SVG score badge (`-o -` for stdout). |
 | `mcpscore version` | Print the version. |
+
+## What the verdict means
+
+`mcpscore check` turns findings into a traffic-light verdict instead of a raw score:
+
+| Verdict | When | Exit | What to do |
+| --- | --- | --- | --- |
+| 🟢 **OK** | nothing found | 0 | Safe to add to Claude Code. |
+| 🟡 **CAUTION** | no errors, but warnings (weak schemas, unpinned deps, …) | 0 | Usable — mind the listed weaknesses. |
+| 🔴 **DANGER** | any error (tool poisoning, leaked secrets, RCE) | 1 | **Do not install.** |
+| ⚪ **UNKNOWN** | no Python `@mcp.tool` found (likely TypeScript / other language) | 0 | Can't check statically — capture `tools/list` and re-run with `--manifest`. |
+
+The numeric score (0–100, shown as a secondary detail) still follows the error-cap rule below: any error caps it at 60. `--fail-under N` adds a CI gate that is independent of the verdict (it can turn a 🟡/🟢 into an exit-1 without changing the displayed verdict).
+
+> **TypeScript servers:** v0.1 checks Python statically, so a TS server returns ⚪ UNKNOWN with instructions. Capture its `tools/list` and run `mcpscore check --manifest dump.json` to check it. Full TS static extraction lands in v0.2.
 
 ## Rules
 

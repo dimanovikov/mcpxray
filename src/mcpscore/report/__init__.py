@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from mcpscore.report import card as card_fmt
 from mcpscore.report import github as github_fmt
 from mcpscore.report import json as json_fmt
 from mcpscore.report import plain, sarif
@@ -23,6 +24,7 @@ _FORMATTERS = {
     "json": json_fmt.render,
     "github": github_fmt.render,
     "sarif": sarif.render,
+    "card": card_fmt.render,
 }
 
 SUPPORTED_FORMATS = tuple(_FORMATTERS)

@@ -80,7 +80,7 @@ class TestSarif:
 
 class TestDispatcher:
     def test_supported_formats(self):
-        assert set(SUPPORTED_FORMATS) == {"plain", "json", "github", "sarif"}
+        assert set(SUPPORTED_FORMATS) == {"plain", "json", "github", "sarif", "card"}
 
     def test_each_format_renders(self):
         for fmt in SUPPORTED_FORMATS:
