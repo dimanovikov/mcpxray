@@ -144,8 +144,8 @@ Scanned against the official [`modelcontextprotocol/python-sdk`](https://github.
 
 ## Roadmap
 
-- **v0.2** — TypeScript static extractor, runtime `tools/list` capture, rules MCP105/109 + shadow endpoints, hosted badge API + a public leaderboard of top MCP servers.
-- **v1.0** — freeze the plugin API (semver), `--fix` for trivial rules, pre-commit hook, PyPI trusted publishing, registry integrations (Glama/Smithery).
+- **v0.2** — scope URL clones to the server entry point (no whole-repo false positives from `tests/`), TypeScript static extractor (the big win — makes `check` work for the majority of servers), rules MCP105/109, opt-in runtime `tools/list` capture. Full plan: [`docs/v0.2-plan.md`](docs/v0.2-plan.md).
+- **v1.0** — freeze the plugin API (semver), `--fix` for trivial rules, pre-commit hook, PyPI trusted publishing, hosted badge API + leaderboard, registry integrations (Glama/Smithery).
 
 ## License
 
