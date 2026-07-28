@@ -129,6 +129,21 @@ jobs:
       - run: mcpscore score ./src --fail-under 80
 ```
 
+## Pre-commit hook
+
+Lint on every commit from any MCP-server repo. Add `mcpscore` to your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/cloudroad-io/mcpscore
+    rev: v0.2.0          # pin to a release tag
+    hooks:
+      - id: mcpscore
+        args: ["./src"]  # path to your server source
+```
+
+The hook runs `mcpscore scan --check <path>` and fails the commit on any ERROR (tool poisoning, leaked secrets, RCE). Requires `mcpscore` on PyPI; if you install it locally instead (`uv tool install mcpscore`), set `language: system` on the hook.
+
 ## How it works
 
 1. **Extract.** `PythonExtractor` walks `.py` files, finds `@mcp.tool` / `@server.tool` decorators, and lifts `name`, the docstring (→ `description`) and type hints (→ JSON Schema) straight from the AST — **no imports, no execution**. `ManifestExtractor` parses a captured `tools/list` JSON dump for servers in any language. For servers you can run, `--runtime --command` spawns it and captures `tools/list` live (`runtime.py`).
@@ -159,7 +174,7 @@ Scanned against the official [`modelcontextprotocol/python-sdk`](https://github.
 ## Roadmap
 
 - **v0.2** — scope URL clones to the server entry point (no whole-repo false positives from `tests/`), TypeScript static extractor (the big win — makes `check` work for the majority of servers), rules MCP105/109, opt-in runtime `tools/list` capture (`--runtime --command`). ✅ implemented; full plan: [`docs/v0.2-plan.md`](docs/v0.2-plan.md).
-- **v1.0** — freeze the plugin API (semver), `--fix` for trivial rules, pre-commit hook, PyPI trusted publishing, hosted badge API + leaderboard, registry integrations (Glama/Smithery).
+- **v1.0** — freeze the plugin API (semver), `--fix` for trivial rules, PyPI trusted publishing, hosted badge API + leaderboard, registry integrations (Glama/Smithery). ✅ done in dev: pre-commit hook (`.pre-commit-hooks.yaml`), GitHub Actions CI.
 
 ## License
 
