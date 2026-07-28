@@ -1,0 +1,57 @@
+name: Release
+
+# Publishes to PyPI when a version tag (vX.Y.Z) is pushed — via OIDC trusted
+# publishing, so NO API token lives in the repo. Requires a one-time PyPI-side
+# setup (see CONTRIBUTING.md → "Releasing"): register the project and add GitHub
+# as a trusted publisher. The publish job runs in a `pypi` environment, which
+# PyPI's trusted-publisher record references (and which can hold required
+# reviewers / branch protection later).
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi # create an environment named "pypi" in repo Settings → Environments
+    permissions:
+      id-token: write # OIDC trusted publishing — no token
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true # sigstore build provenance attestation

@@ -134,7 +134,21 @@ If you're about to change a stable name or signature, treat it as breaking and b
 
 ## Releasing
 
-Maintainers only. Bump `version` in `pyproject.toml`, tag `vX.Y.Z`, push. Trusted PyPI publishing arrives at v1.0.
+Maintainers only. Publishing is **tokenless** via [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) — the `.github/workflows/release.yml` workflow builds an sdist + wheel with `uv build` and uploads to PyPI whenever a `vX.Y.Z` tag is pushed. No API token is stored in the repo.
+
+To cut a release:
+
+1. Bump `version` in `pyproject.toml`, update the README/CHANGELOG if any, commit on `main`.
+2. `git tag vX.Y.Z && git push origin vX.Y.Z` — the Release workflow runs (build → publish to the `pypi` environment).
+3. Watch the workflow; on success the version is live on PyPI within a minute.
+
+**One-time PyPI-side setup** (only needed before the *first* release — needs the maintainer's PyPI account, so it's not automated):
+
+- On PyPI, register the `mcpscore` project (the first `v` tag will fail until this exists — PyPI rejects uploads to unknown projects).
+- Under the project → *Publishing*, add a trusted publisher: **PyPI repository** `cloudroad-io/mcpscore`, **workflow filename** `release.yml`, **environment** `pypi`.
+- In the GitHub repo, create an environment named `pypi` (Settings → Environments) so the workflow's `environment: pypi` resolves.
+
+Optional hardening for later: add required reviewers or a deployment branch rule to the `pypi` environment; set up test-PyPI as a staging publisher first if you want a dry run.
 
 ## License
 
