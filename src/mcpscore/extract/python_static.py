@@ -44,7 +44,24 @@ _SKIP_DIRS = {
     ".ruff_cache",
     ".pytest_cache",
     "site-packages",
+    # Test/fixture trees are never application source and routinely hold fake
+    # keys + example tool registrations that would pollute a real scan (e.g. the
+    # modelcontextprotocol/python-sdk demo inflated to 420 tools / 34 secrets).
+    "tests",
+    "test",
+    "testing",
+    "fixtures",
+    "fixture",
+    "test_data",
+    "testdata",
+    "testdata_dir",
 }
+
+
+def _is_test_dir(name: str) -> bool:
+    """``test_foo`` / ``foo_test`` style dirs (a set can't express prefixes)."""
+    return name.startswith("test_") or name.endswith("_test")
+
 
 _PRIMITIVES = {"str": "string", "int": "integer", "float": "number", "bool": "boolean"}
 _CONTAINER_SEQ = {"list", "List", "set", "Set", "frozenset", "tuple", "Tuple", "Sequence"}
@@ -244,7 +261,7 @@ def _find_lockfiles(root: Path, server: McpServer) -> None:
 def _iter_python_files(root: Path) -> list[Path]:
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not _is_test_dir(d)]
         for name in filenames:
             if name.endswith(".py"):
                 files.append(Path(dirpath) / name)
@@ -264,7 +281,7 @@ class PythonExtractor(Extractor):
             return any(f.suffix == ".py" for f in _iter_python_files(path))
         return False
 
-    def extract(self, path: Path) -> McpServer:
+    def extract(self, path: Path, *, root: Path | None = None) -> McpServer:
         files = [path] if path.is_file() else _iter_python_files(path)
         server = McpServer(
             meta=ServerMeta(
@@ -276,7 +293,9 @@ class PythonExtractor(Extractor):
         )
         for f in files:
             _extract_file(f, server)
-        root = path if path.is_dir() else path.parent
-        _load_pyproject(root, server)
-        _find_lockfiles(root, server)
+        # Metadata (deps/lockfiles) lives at the project root, which may be wider
+        # than the scan scope when the caller narrowed ``path`` to a subpackage.
+        meta_root = root or (path if path.is_dir() else path.parent)
+        _load_pyproject(meta_root, server)
+        _find_lockfiles(meta_root, server)
         return server

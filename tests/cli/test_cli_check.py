@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -133,5 +134,76 @@ class TestCheckUrl:
         remote = self._remote_from(clean, tmp_path)
         url = f"file:///{remote.as_posix()}"
         r = _invoke("check", url)
+        assert r.exit_code == 0
+        assert "OK" in r.stdout
+
+
+@needs_git
+class TestCheckScope:
+    """A cloned repo must be scoped to the server source, not its test tree.
+
+    Reproduces the python-sdk demo failure mode: fake secrets in ``tests/``
+    inflating a clean server to a spurious 🔴. Auto-scoping to the entry point
+    must exclude them; ``--scope tests`` confirms they really are there.
+    """
+
+    @staticmethod
+    def _src_layout_remote(parent: Path) -> Path:
+        remote = parent / "remote"
+        remote.mkdir(parents=True)
+        (remote / "pyproject.toml").write_text(
+            '[project.scripts]\nmyserver = "myserver.main:app"\n', encoding="utf-8"
+        )
+        (remote / "src" / "myserver").mkdir(parents=True)
+        (remote / "src" / "myserver" / "main.py").write_text(
+            "from mcp import FastMCP\nmcp = FastMCP('s')\n\n"
+            "@mcp.tool()\n"
+            "def add(a: int, b: int) -> int:\n"
+            '    """Add two ints."""\n'
+            "    return a + b\n",
+            encoding="utf-8",
+        )
+        (remote / "tests").mkdir()
+        (remote / "tests" / "test_keys.py").write_text(
+            'LEAKED = "sk-1234567890abcdef1234567890abcdef"\n', encoding="utf-8"
+        )
+        for args in (
+            ["git", "init", "-q"],
+            ["git", "add", "."],
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"],
+        ):
+            subprocess.run(args, cwd=remote, check=True)
+        return remote
+
+    def test_auto_scope_check_is_ok(self, tmp_path):
+        remote = self._src_layout_remote(tmp_path)
+        url = f"file:///{remote.as_posix()}"
+        r = _invoke("check", url)
+        assert r.exit_code == 0
+        assert "OK" in r.stdout
+        assert "DANGER" not in r.stdout
+
+    def test_scan_auto_scope_excludes_test_secrets(self, tmp_path):
+        # Auto-scoped to src/myserver: the fake key in tests/ is never scanned.
+        remote = self._src_layout_remote(tmp_path)
+        url = f"file:///{remote.as_posix()}"
+        payload = json.loads(_invoke("scan", url, "-f", "json").stdout)
+        rules = {f["rule_id"] for f in payload["findings"]}
+        assert "MCP102" not in rules
+
+    def test_scan_force_scope_tests_finds_the_secret(self, tmp_path):
+        # Same repo pointed straight at tests/ — proves the key is real and that
+        # auto-scoping (not a broken detector) is what excluded it. ``scan`` is
+        # used because the verdict engine treats a tool-less tree as UNKNOWN.
+        remote = self._src_layout_remote(tmp_path)
+        url = f"file:///{remote.as_posix()}"
+        payload = json.loads(_invoke("scan", url, "--scope", "tests", "-f", "json").stdout)
+        rules = {f["rule_id"] for f in payload["findings"]}
+        assert "MCP102" in rules
+
+    def test_scope_override_points_at_server(self, tmp_path):
+        remote = self._src_layout_remote(tmp_path)
+        url = f"file:///{remote.as_posix()}"
+        r = _invoke("check", url, "--scope", "src/myserver")
         assert r.exit_code == 0
         assert "OK" in r.stdout

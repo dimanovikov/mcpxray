@@ -26,8 +26,15 @@ class Extractor(ABC):
         """True if this extractor can read ``path`` (file or directory)."""
 
     @abstractmethod
-    def extract(self, path: Path) -> McpServer:
-        """Build a :class:`McpServer` from ``path``."""
+    def extract(self, path: Path, *, root: Path | None = None) -> McpServer:
+        """Build a :class:`McpServer` from ``path``.
+
+        ``path`` is the *scan scope* — the tree walked for source files. ``root``,
+        when given, is the wider *project root* to read ``pyproject.toml`` /
+        lockfiles from (it differs from ``path`` only when the caller has narrowed
+        the scan to a subpackage). Defaults to ``path`` so unscoped calls behave
+        exactly as before.
+        """
 
 
 def register_extractor(cls: type[Extractor]) -> type[Extractor]:

@@ -44,7 +44,7 @@ class ManifestExtractor(Extractor):
     def applies_to(self, path: Path) -> bool:
         return _looks_like_manifest(path)
 
-    def extract(self, path: Path) -> McpServer:
+    def extract(self, path: Path, *, root: Path | None = None) -> McpServer:
         payload = json.loads(path.read_text(encoding="utf-8"))
         server = McpServer(
             meta=ServerMeta(name=path.stem, language=None, path=str(path)),

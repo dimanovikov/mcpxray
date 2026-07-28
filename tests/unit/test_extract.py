@@ -11,6 +11,7 @@ from mcpscore.extract.python_static import (
     PythonExtractor,
     _annotation_to_schema,
     _extract_function,
+    _iter_python_files,
 )
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "servers"
@@ -136,6 +137,33 @@ class TestContextParam:
         assert ext.applies_to(FIXTURES / "clean")
         assert ext.applies_to(FIXTURES / "clean" / "server.py")
         assert not ext.applies_to(FIXTURES / "clean_manifest.json")
+
+
+# --- test/fixture trees are never walked -------------------------------------
+
+
+class TestSkipDirs:
+    @staticmethod
+    def _touch(path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x = 1\n", encoding="utf-8")
+
+    def test_iter_skips_test_and_fixture_dirs(self, tmp_path):
+        self._touch(tmp_path / "src" / "app.py")
+        self._touch(tmp_path / "tests" / "test_app.py")
+        self._touch(tmp_path / "test" / "t.py")
+        self._touch(tmp_path / "fixtures" / "data.py")
+        self._touch(tmp_path / "test_foo" / "m.py")  # test_* prefix
+        self._touch(tmp_path / "foo_test" / "m.py")  # _test suffix
+        files = [p.name for p in _iter_python_files(tmp_path)]
+        assert files == ["app.py"]
+
+    def test_explicit_scope_into_test_dir_still_scans_it(self, tmp_path):
+        # "tests" is pruned only as a *child* during a walk; pointed at directly,
+        # it is scanned (lets --scope tests still surface what's there).
+        self._touch(tmp_path / "tests" / "test_app.py")
+        files = [p.name for p in _iter_python_files(tmp_path / "tests")]
+        assert files == ["test_app.py"]
 
 
 # --- manifest extractor ------------------------------------------------------
