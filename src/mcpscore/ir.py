@@ -11,6 +11,37 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+# Public, stable surface for this module. Names listed here are the plugin API
+# (see CONTRIBUTING.md → "Plugin API stability"); everything else — including
+# ``_SEVERITY_RANK`` and ``RISK_WEIGHT`` — is internal and may change at any
+# release. ``from mcpscore.ir import *`` yields exactly this list.
+__all__ = [
+    # severities
+    "SEVERITY_ERROR",
+    "SEVERITY_WARNING",
+    "SEVERITY_INFO",
+    # risk tiers
+    "RISK_CRITICAL",
+    "RISK_HIGH",
+    "RISK_MEDIUM",
+    "RISK_LOW",
+    # scoring
+    "ERROR_SCORE_CAP",
+    # how the IR was obtained
+    "SOURCE_STATIC",
+    "SOURCE_MANIFEST",
+    "SOURCE_RUNTIME",
+    # helpers
+    "severity_rank",
+    # dataclasses
+    "Diagnostic",
+    "Tool",
+    "Resource",
+    "Prompt",
+    "ServerMeta",
+    "McpServer",
+]
+
 # --- severities --------------------------------------------------------------
 SEVERITY_ERROR = "error"
 SEVERITY_WARNING = "warning"

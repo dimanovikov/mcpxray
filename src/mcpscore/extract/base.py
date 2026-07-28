@@ -13,6 +13,10 @@ from pathlib import Path
 
 from mcpscore.ir import McpServer
 
+# Stable plugin API for extractor authors (see CONTRIBUTING.md → "Plugin API
+# stability"). ``_EXTRACTORS`` and any ``_``-prefixed name are internal.
+__all__ = ["Extractor", "register_extractor", "extractors", "extractor_for"]
+
 _EXTRACTORS: list[type[Extractor]] = []
 
 

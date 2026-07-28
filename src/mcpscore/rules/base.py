@@ -20,6 +20,11 @@ from mcpscore.ir import (
     severity_rank,
 )
 
+# Stable plugin API for rule authors (see CONTRIBUTING.md → "Plugin API
+# stability"). Methods/attributes of ``Rule`` below are part of the contract;
+# ``_RULES`` and any ``_``-prefixed name are internal.
+__all__ = ["Rule", "register_rule", "rules", "run_all"]
+
 _RULES: list[type[Rule]] = []
 
 

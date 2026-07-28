@@ -111,6 +111,26 @@ New rules participate in scoring automatically — each `error` finding deducts 
 - Tests: one fixture per rule/behavior, assert on rule ids and exit codes, not on prose.
 - Commit messages follow Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`).
 
+## Plugin API stability
+
+`mcpscore` follows [SemVer](https://semver.org/) from **v1.0** on. The plugin surface — what external rule/extractor packages may import and rely on — is **frozen** and is defined by each module's `__all__`:
+
+| Import path | Stable names |
+| --- | --- |
+| `mcpscore.ir` | `McpServer`, `ServerMeta`, `Tool`, `Diagnostic`, `Resource`, `Prompt`; severities (`SEVERITY_ERROR`/`_WARNING`/`_INFO`); risk tiers (`RISK_CRITICAL`/`_HIGH`/`_MEDIUM`/`_LOW`); `SOURCE_STATIC`/`_MANIFEST`/`_RUNTIME`; `ERROR_SCORE_CAP`; `severity_rank` |
+| `mcpscore.rules.base` | `Rule` (its `id`/`severity`/`risk` attributes and `applies`/`check` methods), `register_rule`, `rules`, `run_all` |
+| `mcpscore.extract.base` | `Extractor` (its `language` attribute and `applies_to`/`extract` methods), `register_extractor`, `extractors`, `extractor_for` |
+| `mcpscore` (top level) | `__version__` only |
+
+Contract:
+
+- **Stable** (listed in `__all__`, no leading underscore): backward-compatible changes only within a major version. Removing a name, renaming it, or changing a signature/return type/field meaning is a **breaking change** → requires a major-version bump (`v2.0.0`) and a migration note.
+- **Internal** (not in `__all__`, or prefixed `_`): the registry containers (`_RULES`, `_EXTRACTORS`), `RISK_WEIGHT`, `_SEVERITY_RANK`, the score internals, and every module not listed above (`cli`, `score`, `runtime`, `report/*`, `extract/python_static`, `extract/typescript_static`, `extract/manifest`, `rules/builtin/*`). These can change in any release — **don't import them from external packages**.
+- New optional parameters/fields are additive (not breaking); new rule ids, severities, risk tiers, and `source_mode` values may be added in minor releases.
+- Entry-point group names — `mcpscore.rules` and `mcpscore.extractors` — are part of the stable contract.
+
+If you're about to change a stable name or signature, treat it as breaking and bump the major version (or add the new form alongside the old and deprecate the old first).
+
 ## Releasing
 
 Maintainers only. Bump `version` in `pyproject.toml`, tag `vX.Y.Z`, push. Trusted PyPI publishing arrives at v1.0.
