@@ -17,6 +17,7 @@ from mcpscore.badge import badge_svg
 from mcpscore.extract import extractor_for
 from mcpscore.extract.manifest import ManifestExtractor
 from mcpscore.extract.manifest import from_tools as manifest_from_tools
+from mcpscore.fix import apply_fixes, has_pending, plan_fixes, render_diff
 from mcpscore.ir import SEVERITY_ERROR, SOURCE_STATIC, McpServer, ServerMeta
 from mcpscore.report import SUPPORTED_FORMATS, render
 from mcpscore.report.card import render_verdict
@@ -24,7 +25,7 @@ from mcpscore.rules import run_all
 from mcpscore.runtime import CaptureError, capture_tools, split_command
 from mcpscore.score import ScoreResult
 from mcpscore.score import score as score_doc
-from mcpscore.source import ResolvedSource, SourceError, resolve_target
+from mcpscore.source import ResolvedSource, SourceError, is_url, resolve_target
 from mcpscore.verdict import verdict
 
 app = typer.Typer(
@@ -200,13 +201,56 @@ def scan(
     check: bool = typer.Option(
         False, "--check", help="Gate: exit 1 on any ERROR finding (CI mode)."
     ),
+    fix: bool = typer.Option(
+        False,
+        "--fix",
+        help="Apply auto-fixes in place (unpinned deps → pinned). Local source only.",
+    ),
+    diff: bool = typer.Option(
+        False,
+        "--diff",
+        help="Print a unified diff of planned fixes; write nothing (exits 1 if any pending).",
+    ),
 ) -> None:
     """Lint an MCP server and print findings in the chosen format."""
+    if fix or diff:
+        if fix and diff:
+            typer.echo("error: --fix and --diff are mutually exclusive", err=True)
+            raise typer.Exit(code=2)
+        if manifest is not None or runtime:
+            typer.echo(
+                "error: --fix/--diff rewrite source files — use a local path, "
+                "not --manifest/--runtime",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        if target is not None and is_url(target):
+            typer.echo(
+                "error: --fix/--diff rewrite files in place — point at a local path, not a URL",
+                err=True,
+            )
+            raise typer.Exit(code=2)
     try:
         doc, score_result = _run(target, manifest, scope, runtime, command, graceful=False)
     except SourceError as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=2) from None
+
+    if fix or diff:
+        fixes = plan_fixes(doc)
+        if diff:
+            out = render_diff(fixes)
+            if out:
+                typer.echo(out, nl=False)
+            if has_pending(fixes):
+                raise typer.Exit(code=1)
+            return
+        summary = apply_fixes(fixes)
+        typer.echo(f"applied {summary.edits_applied} fix(es) in {summary.files_changed} file(s)")
+        for msg in summary.skipped:
+            typer.echo(f"skipped: {msg}", err=True)
+        return
+
     typer.echo(render(doc.diagnostics, fmt, doc=doc, score_result=score_result))
     if check and any(d.severity == SEVERITY_ERROR for d in doc.diagnostics):
         raise typer.Exit(code=1)

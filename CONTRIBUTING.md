@@ -125,7 +125,8 @@ New rules participate in scoring automatically — each `error` finding deducts 
 Contract:
 
 - **Stable** (listed in `__all__`, no leading underscore): backward-compatible changes only within a major version. Removing a name, renaming it, or changing a signature/return type/field meaning is a **breaking change** → requires a major-version bump (`v2.0.0`) and a migration note.
-- **Internal** (not in `__all__`, or prefixed `_`): the registry containers (`_RULES`, `_EXTRACTORS`), `RISK_WEIGHT`, `_SEVERITY_RANK`, the score internals, and every module not listed above (`cli`, `score`, `runtime`, `report/*`, `extract/python_static`, `extract/typescript_static`, `extract/manifest`, `rules/builtin/*`). These can change in any release — **don't import them from external packages**.
+- **Internal** (not in `__all__`, or prefixed `_`): the registry containers (`_RULES`, `_EXTRACTORS`), `RISK_WEIGHT`, `_SEVERITY_RANK`, the score internals, and every module not listed above (`cli`, `fix`, `score`, `runtime`, `report/*`, `extract/python_static`, `extract/typescript_static`, `extract/manifest`, `rules/builtin/*`). These can change in any release — **don't import them from external packages**.
+- **Experimental** (present in `ir.py`, deliberately *not* in `__all__`): the auto-fix types `Fix` / `TextEdit` and `Diagnostic.fix`. Only MCP108 emits fixes today; the shape may change before it's promoted to the stable API (it'll graduate into `__all__` once a second rule uses it).
 - New optional parameters/fields are additive (not breaking); new rule ids, severities, risk tiers, and `source_mode` values may be added in minor releases.
 - Entry-point group names — `mcpscore.rules` and `mcpscore.extractors` — are part of the stable contract.
 

@@ -49,7 +49,7 @@ mcpscore badge path/to/my-mcp-server -o docs/score.svg
 | Command | Purpose |
 | --- | --- |
 | `mcpscore check <URL \| PATH> [--manifest FILE] [--runtime --command CMD] [--details\|-v] [--fail-under N]` | **Friendly safety verdict** (🟢/🟡/🔴/⚪) + recommendation. Clones a GitHub URL automatically; exits 1 on 🔴 danger or below `--fail-under`. |
-| `mcpscore scan [PATH] [--manifest FILE] [--runtime --command CMD] [-f plain\|json\|github\|sarif\|card] [--check]` | Lint a server and print findings. `--check` exits 1 on any ERROR (CI gate). |
+| `mcpscore scan [PATH] [--manifest FILE] [--runtime --command CMD] [-f plain\|json\|github\|sarif\|card] [--check] [--fix] [--diff]` | Lint a server and print findings. `--check` exits 1 on any ERROR (CI gate); `--fix` pins unpinned deps in place, `--diff` previews (local source only). |
 | `mcpscore score [PATH] [--manifest FILE] [--runtime --command CMD] [--fail-under N]` | Print the 0–100 score and grade; exit 1 below `--fail-under`. |
 | `mcpscore badge [PATH \| --score N] [-o FILE]` | Render an SVG score badge (`-o -` for stdout). |
 | `mcpscore version` | Print the version. |
@@ -81,6 +81,23 @@ mcpscore check --runtime --command "node dist/index.js" path/to/server   # cwd =
 > ⚠️ **`--runtime` executes the server under inspection.** It is opt-in, runs the server with a bounded lifetime (timeouts + guaranteed teardown), and parses its response defensively — but provides **no OS-level sandbox** (no filesystem/network isolation). Only point it at servers you trust; for untrusted servers, run mcpscore inside a container or VM. Prefer `--manifest` when you already have a captured `tools/list`.
 
 Runtime-captured tools carry no source text, so the source-scanning rules (MCP102 secrets / MCP103 RCE / MCP105 drift / MCP109 transport) can't fire — but schema and description rules (MCP104/106/107) still run on the captured definitions.
+
+## Auto-fix (`scan --fix` / `--diff`)
+
+The one rule that's mechanically, unambiguously fixable is **MCP108** (unpinned dependencies): `scan --fix` pins a floating spec to its concrete floor version — `requests>=2.30.0` → `requests==2.30.0` (pip), `"zod": "^1.2.3"` → `"zod": "1.2.3"` (npm). It edits `pyproject.toml` / `package.json` in place (atomically); `--diff` prints the same changes as a unified diff and writes nothing.
+
+```bash
+mcpscore scan path/to/server --diff     # preview (exits 1 if changes are pending — CI-friendly)
+mcpscore scan path/to/server --fix      # apply in place
+```
+
+What it does **not** touch:
+
+- **No floor to pin** (`*`, `latest`, a bare `flask`, `>=2` with no patch) → skipped, left for you to resolve against a registry. mcpscore never invents a version.
+- **Specs with extras/env markers** (`pkg[extra]>=1.2.3`, `pkg>=1.2.3 ; python_version>'3'`) → skipped (rewriting them textually is unsafe).
+- **Every other rule** (MCP101–107, MCP109) → not auto-fixable; these need human judgment (a leaked secret isn't "fixed" by deleting it).
+
+`--fix`/`--diff` are **static-source-only** — they rewrite files in place, so they reject `--manifest`, `--runtime`, and URL targets (point them at a local path). Every edit is a literal, uniquely-anchored replacement, so an ambiguous match is skipped rather than applied wrongly. Re-run `scan` after `--fix` to confirm the score improved.
 
 ## Rules
 
@@ -174,7 +191,7 @@ Scanned against the official [`modelcontextprotocol/python-sdk`](https://github.
 ## Roadmap
 
 - **v0.2** — scope URL clones to the server entry point (no whole-repo false positives from `tests/`), TypeScript static extractor (the big win — makes `check` work for the majority of servers), rules MCP105/109, opt-in runtime `tools/list` capture (`--runtime --command`). ✅ implemented; full plan: [`docs/v0.2-plan.md`](docs/v0.2-plan.md).
-- **v1.0** — freeze the plugin API (semver), `--fix` for trivial rules, PyPI trusted publishing, hosted badge API + leaderboard, registry integrations (Glama/Smithery). ✅ done in dev: pre-commit hook (`.pre-commit-hooks.yaml`), GitHub Actions CI, frozen plugin API (`__all__` + SemVer policy, see [CONTRIBUTING.md](CONTRIBUTING.md)).
+- **v1.0** — freeze the plugin API (semver), `--fix` for trivial rules, PyPI trusted publishing, hosted badge API + leaderboard, registry integrations (Glama/Smithery). ✅ done in dev: pre-commit hook (`.pre-commit-hooks.yaml`), GitHub Actions CI, frozen plugin API (`__all__` + SemVer policy, see [CONTRIBUTING.md](CONTRIBUTING.md)), `--fix`/`--diff` (pin unpinned deps).
 
 ## License
 

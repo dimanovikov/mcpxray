@@ -494,6 +494,8 @@ def _load_package_json(root: Path, server: McpServer) -> None:
             for name, spec in deps.items():
                 if isinstance(name, str):
                     server.dependencies[name] = str(spec)
+    if server.dependencies:
+        server.dep_file = str(pkg)  # provenance for `--fix`
 
 
 def _find_npm_lockfiles(root: Path, server: McpServer) -> None:

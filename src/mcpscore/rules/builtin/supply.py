@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 
-from mcpscore.ir import RISK_MEDIUM, SEVERITY_WARNING, Diagnostic, McpServer
+from mcpscore.fix import exact_pin
+from mcpscore.ir import RISK_MEDIUM, SEVERITY_WARNING, Diagnostic, Fix, McpServer, TextEdit
 from mcpscore.rules.base import Rule, register_rule
 
 # npm: an exact bare version is reproducible; carets/tilde/ranges/wildcards/tags
@@ -30,6 +31,31 @@ def _is_pinned(spec: str) -> bool:
     return bool(_NPM_PIN_RE.match(spec))  # npm exact version
 
 
+def _pin_edits(
+    dependencies: dict[str, str], unpinned: list[str], dep_file: str, *, pip: bool
+) -> list[TextEdit]:
+    """Literal ``TextEdit``\\s pinning each unpinned dep to its concrete floor.
+
+    Skips specs with no resolvable floor (``*``/``latest``/bare) or with extras
+    / env markers (``name[extra]`` / ``name ; python>'3'``) — rewriting those
+    textually is unsafe, so they're left for manual pinning. Each edit anchors on
+    the dep name so the fix engine's uniqueness check lands on the right site.
+    """
+    edits: list[TextEdit] = []
+    for name in unpinned:
+        spec = dependencies[name]
+        if "[" in spec or ";" in spec:
+            continue
+        pinned = exact_pin(spec, pip=pip)
+        if pinned is None:
+            continue
+        if pip:  # pyproject array element: ``"name<spec>"``
+            edits.append(TextEdit(old=f"{name}{spec}", new=f"{name}{pinned}"))
+        else:  # package.json pair: ``"name": "<spec>"``
+            edits.append(TextEdit(old=f'"{name}": "{spec}"', new=f'"{name}": "{pinned}"'))
+    return edits
+
+
 @register_rule
 class UnpinnedDependencies(Rule):
     id = "MCP108"
@@ -46,9 +72,21 @@ class UnpinnedDependencies(Rule):
             return
         shown = ", ".join(unpinned[:5])
         more = f" (+{len(unpinned) - 5} more)" if len(unpinned) > 5 else ""
-        yield Diagnostic(
+        diag = Diagnostic(
             self.id,
             self.severity,
             f"{len(unpinned)} unpinned dependencies and no lockfile: {shown}{more}",
             file=doc.meta.path,
         )
+        dep_file = doc.dep_file
+        if dep_file:
+            edits = _pin_edits(
+                doc.dependencies, unpinned, dep_file, pip=not dep_file.endswith("package.json")
+            )
+            if edits:
+                diag.fix = Fix(
+                    description="pin unpinned dependencies to their declared floor version",
+                    file=dep_file,
+                    edits=edits,
+                )
+        yield diag

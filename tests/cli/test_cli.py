@@ -7,6 +7,7 @@ user would, asserting on exit codes and observable output rather than internals.
 from __future__ import annotations
 
 import json as _json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -141,3 +142,65 @@ class TestBadge:
     def test_needs_score_or_path(self):
         r = _invoke("badge")
         assert r.exit_code == 2
+
+
+class TestScanFix:
+    """`scan --fix` / `--diff`: pin unpinned deps (static source, hermetic)."""
+
+    def _copy(self, name: str, tmp_path: Path) -> Path:
+        dst = tmp_path / "srv"
+        shutil.copytree(FIXTURES / name, dst)
+        return dst
+
+    def test_diff_shows_pins_and_writes_nothing(self, tmp_path):
+        srv = self._copy("unpinned_fixable", tmp_path)
+        pyproject = srv / "pyproject.toml"
+        before = pyproject.read_text(encoding="utf-8")
+        r = _invoke("scan", str(srv), "--diff")
+        assert r.exit_code == 1  # pending changes
+        assert "requests==2.30.0" in r.stdout
+        assert "httpx==0.27.0" in r.stdout
+        assert pyproject.read_text(encoding="utf-8") == before  # nothing written
+
+    def test_fix_writes_pinned_versions(self, tmp_path):
+        srv = self._copy("unpinned_fixable", tmp_path)
+        pyproject = srv / "pyproject.toml"
+        r = _invoke("scan", str(srv), "--fix")
+        assert r.exit_code == 0
+        assert "applied 2 fix(es) in 1 file(s)" in r.stdout
+        text = pyproject.read_text(encoding="utf-8")
+        assert "requests==2.30.0" in text
+        assert "httpx==0.27.0" in text
+        assert ">=2.30.0" not in text
+        assert '"flask"' in text  # bare dep left untouched (no floor to pin to)
+
+    def test_fix_no_floor_applies_zero(self):
+        # requests>=2 (major-only) + bare flask — neither has a full X.Y.Z floor.
+        r = _invoke("scan", str(FIXTURES / "unpinned"), "--fix")
+        assert r.exit_code == 0
+        assert "applied 0 fix(es)" in r.stdout
+
+    def test_diff_no_pending_exits_zero(self, tmp_path):
+        # A server with no dependencies at all → MCP108 never fires → no pending.
+        (tmp_path / "server.py").write_text(
+            'from mcp.server.fastmcp import FastMCP\nmcp = FastMCP("d")\n'
+            '@mcp.tool()\ndef ping() -> str:\n    """p"""\n    return "pong"\n',
+            encoding="utf-8",
+        )
+        r = _invoke("scan", str(tmp_path), "--diff")
+        assert r.exit_code == 0
+
+    def test_fix_and_diff_mutually_exclusive(self, clean):
+        r = _invoke("scan", str(clean), "--fix", "--diff")
+        assert r.exit_code == 2
+        assert "mutually exclusive" in (r.stderr or r.stdout)
+
+    def test_fix_rejects_manifest(self):
+        r = _invoke("scan", "--fix", "--manifest", str(FIXTURES / "clean_manifest.json"))
+        assert r.exit_code == 2
+        assert "not --manifest/--runtime" in (r.stderr or r.stdout)
+
+    def test_fix_rejects_url(self):
+        r = _invoke("scan", "--fix", "https://github.com/owner/repo")
+        assert r.exit_code == 2
+        assert "not a URL" in (r.stderr or r.stdout)

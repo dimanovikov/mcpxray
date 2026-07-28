@@ -76,6 +76,32 @@ def severity_rank(sev: str) -> int:
 
 
 @dataclass
+class TextEdit:
+    """A single literal substring replacement (auto-fix machinery).
+
+    ``old`` must occur exactly once in the target file or the edit is skipped —
+    it is never applied ambiguously. Experimental: not part of the stable plugin
+    API (``__all__``) until a second rule emits fixes.
+    """
+
+    old: str
+    new: str
+
+
+@dataclass
+class Fix:
+    """A proposed auto-fix: apply ``edits`` to ``file`` (non-overlapping).
+
+    Experimental plugin surface (pre-stable); see CONTRIBUTING.md → "Plugin API
+    stability". A rule attaches one to :attr:`Diagnostic.fix`.
+    """
+
+    description: str
+    file: str
+    edits: list[TextEdit] = field(default_factory=list)
+
+
+@dataclass
 class Diagnostic:
     """A single lint finding. Stable ``rule_id``; ``line``/``col`` are 1-indexed."""
 
@@ -86,6 +112,7 @@ class Diagnostic:
     file: str | None = None
     line: int | None = None
     col: int | None = None
+    fix: Fix | None = None  # proposed auto-fix, if the rule can produce one
 
 
 @dataclass
@@ -148,6 +175,7 @@ class McpServer:
     lockfiles: list[str] = field(default_factory=list)  # lockfile basenames found
     diagnostics: list[Diagnostic] = field(default_factory=list)
     source_mode: str = SOURCE_STATIC  # how the IR was obtained
+    dep_file: str | None = None  # pyproject.toml/package.json that supplied deps (fix provenance)
 
     @property
     def errors(self) -> list[Diagnostic]:

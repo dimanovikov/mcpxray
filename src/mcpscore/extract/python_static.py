@@ -250,6 +250,8 @@ def _load_pyproject(root: Path, server: McpServer) -> None:
         name, spec = _split_dep(str(dep))
         if name:
             server.dependencies[name] = spec
+    if server.dependencies:
+        server.dep_file = str(pyproject)  # provenance for `--fix`
 
 
 def _find_lockfiles(root: Path, server: McpServer) -> None:

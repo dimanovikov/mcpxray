@@ -70,6 +70,10 @@ Builtins live in `rules/builtin/`:
 
 `report/__init__.py` dispatches by format name to one of `plain`/`json`/`github`/`sarif`; every formatter shares the signature `render(diags, doc, score_result) -> str`. `badge.badge_svg(score_result)` renders a flat shields-style SVG, color chosen by grade.
 
+## Auto-fix (`fix.py`)
+
+A rule may attach a `Fix` (a file + ordered literal `TextEdit`s) to its `Diagnostic`. `scan --fix` collects every diagnostic's fix, groups edits per file, and writes them atomically — but only edits whose `old` text occurs **exactly once** (ambiguous or absent matches are skipped, never applied wrongly). `scan --diff` renders the same edits as a unified diff without writing. Both are static-source-only (they rewrite files in place, so `--manifest`/`--runtime`/URL targets are rejected). Today only **MCP108** emits fixes — it pins a floating spec to its concrete floor (`requests>=2.30.0` → `requests==2.30.0`). `Fix`/`TextEdit` are experimental (not in `__all__`); see CONTRIBUTING.md.
+
 ## Extension points
 
 - **Add a rule** — subclass `Rule`, decorate `@register_rule`, implement `check`. For an external package, add an entry-point under `mcpscore.rules`.
