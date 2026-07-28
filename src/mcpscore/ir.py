@@ -36,6 +36,7 @@ ERROR_SCORE_CAP = 60
 
 SOURCE_STATIC = "static"
 SOURCE_MANIFEST = "manifest"
+SOURCE_RUNTIME = "runtime"  # tools captured by spawning the server (tools/list)
 
 
 def severity_rank(sev: str) -> int:

@@ -16,10 +16,12 @@ from mcpscore import __version__
 from mcpscore.badge import badge_svg
 from mcpscore.extract import extractor_for
 from mcpscore.extract.manifest import ManifestExtractor
+from mcpscore.extract.manifest import from_tools as manifest_from_tools
 from mcpscore.ir import SEVERITY_ERROR, SOURCE_STATIC, McpServer, ServerMeta
 from mcpscore.report import SUPPORTED_FORMATS, render
 from mcpscore.report.card import render_verdict
 from mcpscore.rules import run_all
+from mcpscore.runtime import CaptureError, capture_tools, split_command
 from mcpscore.score import ScoreResult
 from mcpscore.score import score as score_doc
 from mcpscore.source import ResolvedSource, SourceError, resolve_target
@@ -33,74 +35,89 @@ app = typer.Typer(
 )
 
 
-def _extract(resolved: ResolvedSource) -> McpServer:
-    """Build a :class:`McpServer` IR from a resolved source (scope) + project root."""
+def _extract_doc(
+    resolved: ResolvedSource, runtime_argv: list[str] | None, *, graceful: bool
+) -> McpServer:
+    """Build a :class:`McpServer` from a manifest file, a runtime capture, or source.
+
+    The three input modes are mutually exclusive (enforced in :func:`_run`).
+    ``graceful`` only affects the static no-extractor case: ``check`` synthesizes
+    an empty static doc (→ an honest UNKNOWN card); ``scan``/``score`` exit-2.
+    """
     if resolved.manifest is not None:
         if not resolved.manifest.is_file():
             typer.echo(f"error: manifest not found: {resolved.manifest}", err=True)
             raise typer.Exit(code=2)
         return ManifestExtractor().extract(resolved.manifest)
 
+    if runtime_argv is not None:
+        captured = capture_tools(runtime_argv, cwd=resolved.path)
+        return manifest_from_tools(
+            captured.tools,
+            name=captured.server_name or "runtime",
+            path_str=str(resolved.path or resolved.root or Path.cwd()),
+            version=captured.server_version,
+        )
+
     path = resolved.path if resolved.path is not None else Path.cwd()
     extractor = extractor_for(path)
     if extractor is None:
+        if graceful:
+            return McpServer(
+                meta=ServerMeta(name=path.name, language=None, path=str(resolved.root or path)),
+                source_mode=SOURCE_STATIC,
+            )
         typer.echo(
             f"error: no extractor matched {path} "
-            "(point at a source tree, or pass --manifest <tools/list.json>)",
+            "(point at a source tree, pass --manifest <tools/list.json>, "
+            "or use --runtime --command '<launch>')",
             err=True,
         )
         raise typer.Exit(code=2)
     return extractor.extract(path, root=resolved.root)
 
 
-def _analyze(resolved: ResolvedSource) -> tuple[McpServer, ScoreResult]:
+def _analyze(
+    resolved: ResolvedSource, runtime_argv: list[str] | None, *, graceful: bool
+) -> tuple[McpServer, ScoreResult]:
     """Extract, run all rules, score. Returns (doc, score_result)."""
-    doc = _extract(resolved)
-    run_all(doc)
-    return doc, score_doc(doc)
-
-
-def _analyze_graceful(resolved: ResolvedSource) -> tuple[McpServer, ScoreResult]:
-    """Like :func:`_analyze`, but never hard-exits on "no extractor matched".
-
-    When no extractor applies (a non-Python repo, or a tree with no MCP tools),
-    an empty static :class:`~mcpscore.ir.McpServer` is synthesized so the verdict
-    engine can produce an honest UNKNOWN card instead of the exit-2 that ``scan``
-    raises.
-    """
-    if resolved.manifest is not None:
-        if not resolved.manifest.is_file():
-            typer.echo(f"error: manifest not found: {resolved.manifest}", err=True)
-            raise typer.Exit(code=2)
-        doc = ManifestExtractor().extract(resolved.manifest)
-    else:
-        path = resolved.path if resolved.path is not None else Path.cwd()
-        extractor = extractor_for(path)
-        if extractor is None:
-            doc = McpServer(
-                meta=ServerMeta(name=path.name, language=None, path=str(resolved.root or path)),
-                source_mode=SOURCE_STATIC,
-            )
-        else:
-            doc = extractor.extract(path, root=resolved.root)
+    doc = _extract_doc(resolved, runtime_argv, graceful=graceful)
     run_all(doc)
     return doc, score_doc(doc)
 
 
 def _run(
-    target: str | None, manifest: Path | None, scope: str | None, *, graceful: bool
+    target: str | None,
+    manifest: Path | None,
+    scope: str | None,
+    runtime: bool,
+    command: str | None,
+    *,
+    graceful: bool,
 ) -> tuple[McpServer, ScoreResult]:
     """Resolve a target (URL / path / manifest, optionally scoped) and analyze it.
 
-    Shared by every command so URL input, ``--scope``, and tempdir cleanup live in
-    one place. ``graceful`` selects UNKNOWN-on-no-extractor (``check``) vs the
-    exit-2 that ``scan``/``score``/``badge`` raise.
+    Shared by every command so URL input, ``--scope``, ``--runtime``, and tempdir
+    cleanup live in one place. ``graceful`` selects UNKNOWN-on-no-extractor
+    (``check``) vs the exit-2 that ``scan``/``score``/``badge`` raise.
     """
-    resolved = resolve_target(target, manifest, scope)
+    if manifest is not None and runtime:
+        typer.echo("error: --manifest and --runtime are mutually exclusive", err=True)
+        raise typer.Exit(code=2)
+    if runtime and not command:
+        typer.echo("error: --runtime needs --command <launch cmd>", err=True)
+        raise typer.Exit(code=2)
+
+    resolved: ResolvedSource | None = None
     try:
-        return _analyze_graceful(resolved) if graceful else _analyze(resolved)
+        runtime_argv = split_command(command) if runtime else None
+        resolved = resolve_target(target, manifest, scope)
+        return _analyze(resolved, runtime_argv, graceful=graceful)
+    except CaptureError as e:
+        typer.echo(f"error: runtime capture failed: {e}", err=True)
+        raise typer.Exit(code=2) from None
     finally:
-        if resolved.cleanup is not None:
+        if resolved is not None and resolved.cleanup is not None:
             try:
                 resolved.cleanup.cleanup()
             except OSError:  # git may briefly hold pack-locks on Windows
@@ -113,8 +130,21 @@ def check(
     manifest: Path = typer.Option(
         None, "--manifest", help="Captured tools/list JSON dump instead of source/URL."
     ),
+    runtime: bool = typer.Option(
+        False,
+        "--runtime",
+        help=(
+            "Spawn the server and capture its tools/list over MCP stdio (opt-in; "
+            "needs --command; executes the server — trusted/container only)."
+        ),
+    ),
+    command: str = typer.Option(
+        None,
+        "--command",
+        help="Launch command for --runtime, e.g. 'python -m srv' / 'node server.js' (POSIX split).",
+    ),
     scope: str = typer.Option(
-        None, "--scope", help="Subdirectory to scan, relative to the target."
+        None, "--scope", help="Subdirectory to scan/run in, relative to the target."
     ),
     details: bool = typer.Option(
         False, "--details", "-v", help="Also print the full finding list."
@@ -125,7 +155,7 @@ def check(
 ) -> None:
     """Friendly safety check: is this MCP server safe to install?"""
     try:
-        doc, score_result = _run(target, manifest, scope, graceful=True)
+        doc, score_result = _run(target, manifest, scope, runtime, command, graceful=True)
     except SourceError as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=2) from None
@@ -149,8 +179,20 @@ def scan(
     manifest: Path = typer.Option(
         None, "--manifest", help="Captured tools/list JSON dump instead of source."
     ),
+    runtime: bool = typer.Option(
+        False,
+        "--runtime",
+        help=(
+            "Spawn the server and capture its tools/list over MCP stdio (opt-in; needs --command)."
+        ),
+    ),
+    command: str = typer.Option(
+        None,
+        "--command",
+        help="Launch command for --runtime, e.g. 'python -m srv' / 'node server.js'.",
+    ),
     scope: str = typer.Option(
-        None, "--scope", help="Subdirectory to scan, relative to the target."
+        None, "--scope", help="Subdirectory to scan/run in, relative to the target."
     ),
     fmt: str = typer.Option(
         "plain", "-f", "--format", help=f"Report format: {', '.join(SUPPORTED_FORMATS)}."
@@ -161,7 +203,7 @@ def scan(
 ) -> None:
     """Lint an MCP server and print findings in the chosen format."""
     try:
-        doc, score_result = _run(target, manifest, scope, graceful=False)
+        doc, score_result = _run(target, manifest, scope, runtime, command, graceful=False)
     except SourceError as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=2) from None
@@ -174,14 +216,26 @@ def scan(
 def score(
     target: str = typer.Argument(None, help="Path or URL to the MCP server source."),
     manifest: Path = typer.Option(None, "--manifest", help="Captured tools/list JSON dump."),
+    runtime: bool = typer.Option(
+        False,
+        "--runtime",
+        help=(
+            "Spawn the server and capture its tools/list over MCP stdio (opt-in; needs --command)."
+        ),
+    ),
+    command: str = typer.Option(
+        None,
+        "--command",
+        help="Launch command for --runtime, e.g. 'python -m srv' / 'node server.js'.",
+    ),
     scope: str = typer.Option(
-        None, "--scope", help="Subdirectory to scan, relative to the target."
+        None, "--scope", help="Subdirectory to scan/run in, relative to the target."
     ),
     fail_under: int = typer.Option(0, "--fail-under", help="Gate: exit 1 if the score is below N."),
 ) -> None:
     """Print the 0-100 score and grade; exit 1 if below --fail-under."""
     try:
-        _doc, score_result = _run(target, manifest, scope, graceful=False)
+        _doc, score_result = _run(target, manifest, scope, runtime, command, graceful=False)
     except SourceError as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=2) from None
@@ -204,7 +258,7 @@ def badge(
         result = ScoreResult(score=score_value, errors=0, warnings=0, infos=0, capped=False)
     elif target is not None:
         try:
-            _doc, result = _run(target, None, None, graceful=False)
+            _doc, result = _run(target, None, None, False, None, graceful=False)
         except SourceError as e:
             typer.echo(f"error: {e}", err=True)
             raise typer.Exit(code=2) from None

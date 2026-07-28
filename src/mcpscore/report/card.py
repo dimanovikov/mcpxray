@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING
 
+from mcpscore.ir import SOURCE_RUNTIME
 from mcpscore.report import plain as plain_fmt
 from mcpscore.verdict import TIER_CAUTION, TIER_DANGER, TIER_OK, TIER_UNKNOWN, Verdict, verdict
 
@@ -58,6 +59,8 @@ def _tool_detail(doc: McpServer | None) -> str:
     n = len(doc.tools)
     word = "tool" if n == 1 else "tools"
     lang = doc.meta.language if doc.meta else None
+    if not lang and getattr(doc, "source_mode", None) == SOURCE_RUNTIME:
+        lang = "runtime"  # tools captured live — not a parsed source language
     if lang:
         return f" ({lang}, {n} {word})"
     if n:
@@ -94,8 +97,10 @@ def render_verdict(
             "language, or tools built dynamically at runtime).",
             "",
             "To check it anyway:",
-            "  1. Capture its tools/list response to a JSON file.",
-            "  2. Run: mcpscore check --manifest tools-list.json",
+            "  1. Capture its tools/list response to a JSON file, then run:",
+            "       mcpscore check --manifest tools-list.json",
+            "  2. Or spawn it and let mcpscore capture tools/list live:",
+            "       mcpscore check --runtime --command '<launch cmd>'",
         ]
     elif v.reasons:
         lines.append("Why:")

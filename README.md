@@ -8,9 +8,7 @@
 
 ✅ **v0.1.0** — Python static extractor + manifest extractor, rules MCP101/102/103/104/106/107/108, `scan`/`score`/`badge`/`version`, plain/json/github/sarif reports, 0–100 score with error cap, SVG badge, plugin API. 73 tests, 94% coverage.
 
-🚧 **dev (→ v0.2):** friendly `check` command — point at a **GitHub URL** or a local path, get a traffic-light verdict (🟢/🟡/🔴/⚪) + a plain-language recommendation; new `card` report format. 120+ tests.
-
-TypeScript static extraction, runtime `tools/list` capture, and rules MCP105 (schema/impl drift) / MCP109 (transport auth) land in v0.2.
+🚧 **dev (→ v0.2):** friendly `check` command (traffic-light 🟢/🟡/🔴/⚪ verdict + recommendation, clones a GitHub URL), `card` report format; **scope URL clones to the server entry point**, **TypeScript static extraction**, rules **MCP105** (schema/impl drift) & **MCP109** (transport auth), and **opt-in runtime `tools/list` capture** (`check --runtime --command`). 196 tests.
 
 ## Install
 
@@ -34,6 +32,9 @@ mcpscore check path/to/my-mcp-server --details
 # Not a Python server? Hand mcpscore a captured tools/list dump (any language)
 mcpscore check --manifest tools-list.json
 
+# ...or spawn the server and let mcpscore capture tools/list live (any language)
+mcpscore check --runtime --command "python -m my_mcp_server"
+
 # --- power users / CI -----------------------------------------------------
 # Lint and print findings (CI gate: --check exits 1 on any ERROR)
 mcpscore scan path/to/my-mcp-server --check -f github
@@ -47,9 +48,9 @@ mcpscore badge path/to/my-mcp-server -o docs/score.svg
 
 | Command | Purpose |
 | --- | --- |
-| `mcpscore check <URL \| PATH> [--manifest FILE] [--details\|-v] [--fail-under N]` | **Friendly safety verdict** (🟢/🟡/🔴/⚪) + recommendation. Clones a GitHub URL automatically; exits 1 on 🔴 danger or below `--fail-under`. |
-| `mcpscore scan [PATH] [--manifest FILE] [-f plain\|json\|github\|sarif\|card] [--check]` | Lint a server and print findings. `--check` exits 1 on any ERROR (CI gate). |
-| `mcpscore score [PATH] [--manifest FILE] [--fail-under N]` | Print the 0–100 score and grade; exit 1 below `--fail-under`. |
+| `mcpscore check <URL \| PATH> [--manifest FILE] [--runtime --command CMD] [--details\|-v] [--fail-under N]` | **Friendly safety verdict** (🟢/🟡/🔴/⚪) + recommendation. Clones a GitHub URL automatically; exits 1 on 🔴 danger or below `--fail-under`. |
+| `mcpscore scan [PATH] [--manifest FILE] [--runtime --command CMD] [-f plain\|json\|github\|sarif\|card] [--check]` | Lint a server and print findings. `--check` exits 1 on any ERROR (CI gate). |
+| `mcpscore score [PATH] [--manifest FILE] [--runtime --command CMD] [--fail-under N]` | Print the 0–100 score and grade; exit 1 below `--fail-under`. |
 | `mcpscore badge [PATH \| --score N] [-o FILE]` | Render an SVG score badge (`-o -` for stdout). |
 | `mcpscore version` | Print the version. |
 
@@ -62,11 +63,24 @@ mcpscore badge path/to/my-mcp-server -o docs/score.svg
 | 🟢 **OK** | nothing found | 0 | Safe to add to Claude Code. |
 | 🟡 **CAUTION** | no errors, but warnings (weak schemas, unpinned deps, …) | 0 | Usable — mind the listed weaknesses. |
 | 🔴 **DANGER** | any error (tool poisoning, leaked secrets, RCE) | 1 | **Do not install.** |
-| ⚪ **UNKNOWN** | no MCP tools found statically (unsupported language, or tools built at runtime) | 0 | Can't check statically — capture `tools/list` and re-run with `--manifest`. |
+| ⚪ **UNKNOWN** | no MCP tools found statically (unsupported language, or tools built at runtime) | 0 | Can't check statically — capture `tools/list` (`--manifest`) or spawn the server (`--runtime --command`). |
 
 The numeric score (0–100, shown as a secondary detail) still follows the error-cap rule below: any error caps it at 60. `--fail-under N` adds a CI gate that is independent of the verdict (it can turn a 🟡/🟢 into an exit-1 without changing the displayed verdict).
 
-> **Languages:** v0.2 checks **Python and TypeScript** statically (FastMCP `@mcp.tool` and the TS SDK's `server.tool(...)` / `registerTool(...)` / low-level `ListToolsRequestSchema` shapes). Servers in other languages — or tools built dynamically at runtime — still return ⚪ UNKNOWN; capture `tools/list` and run `mcpscore check --manifest dump.json`.
+> **Languages:** v0.2 checks **Python and TypeScript** statically (FastMCP `@mcp.tool` and the TS SDK's `server.tool(...)` / `registerTool(...)` / low-level `ListToolsRequestSchema` shapes). Servers in other languages — or tools built dynamically at runtime — still return ⚪ UNKNOWN; capture `tools/list` (`mcpscore check --manifest dump.json`), or spawn the server and let mcpscore capture it live (`mcpscore check --runtime --command '<launch>'`).
+
+## Runtime capture (`--runtime --command`)
+
+When source isn't parseable (compiled, 3rd-party, or tools built dynamically), `--runtime` **spawns the server, performs the MCP JSON-RPC handshake over stdio (`initialize` → `notifications/initialized` → `tools/list`), and feeds the captured tools through the same rules**. It's strictly opt-in and needs an explicit launch command:
+
+```bash
+mcpscore check --runtime --command "python -m my_mcp_server"
+mcpscore check --runtime --command "node dist/index.js" path/to/server   # cwd = the path
+```
+
+> ⚠️ **`--runtime` executes the server under inspection.** It is opt-in, runs the server with a bounded lifetime (timeouts + guaranteed teardown), and parses its response defensively — but provides **no OS-level sandbox** (no filesystem/network isolation). Only point it at servers you trust; for untrusted servers, run mcpscore inside a container or VM. Prefer `--manifest` when you already have a captured `tools/list`.
+
+Runtime-captured tools carry no source text, so the source-scanning rules (MCP102 secrets / MCP103 RCE / MCP105 drift / MCP109 transport) can't fire — but schema and description rules (MCP104/106/107) still run on the captured definitions.
 
 ## Rules
 
@@ -117,7 +131,7 @@ jobs:
 
 ## How it works
 
-1. **Extract.** `PythonExtractor` walks `.py` files, finds `@mcp.tool` / `@server.tool` decorators, and lifts `name`, the docstring (→ `description`) and type hints (→ JSON Schema) straight from the AST — **no imports, no execution**. `ManifestExtractor` parses a captured `tools/list` JSON dump for servers in any language.
+1. **Extract.** `PythonExtractor` walks `.py` files, finds `@mcp.tool` / `@server.tool` decorators, and lifts `name`, the docstring (→ `description`) and type hints (→ JSON Schema) straight from the AST — **no imports, no execution**. `ManifestExtractor` parses a captured `tools/list` JSON dump for servers in any language. For servers you can run, `--runtime --command` spawns it and captures `tools/list` live (`runtime.py`).
 2. **Lint.** Each rule sees the resulting `McpServer` IR and emits `Diagnostic`s.
 3. **Score.** Findings collapse to a 0–100 score with an error cap (mirrors OpenSSF Scorecard's shape).
 4. **Report.** `plain`, `json`, `github` annotations, or `sarif` (for GitHub code scanning).
@@ -144,7 +158,7 @@ Scanned against the official [`modelcontextprotocol/python-sdk`](https://github.
 
 ## Roadmap
 
-- **v0.2** — scope URL clones to the server entry point (no whole-repo false positives from `tests/`), TypeScript static extractor (the big win — makes `check` work for the majority of servers), rules MCP105/109, opt-in runtime `tools/list` capture. Full plan: [`docs/v0.2-plan.md`](docs/v0.2-plan.md).
+- **v0.2** — scope URL clones to the server entry point (no whole-repo false positives from `tests/`), TypeScript static extractor (the big win — makes `check` work for the majority of servers), rules MCP105/109, opt-in runtime `tools/list` capture (`--runtime --command`). ✅ implemented; full plan: [`docs/v0.2-plan.md`](docs/v0.2-plan.md).
 - **v1.0** — freeze the plugin API (semver), `--fix` for trivial rules, pre-commit hook, PyPI trusted publishing, hosted badge API + leaderboard, registry integrations (Glama/Smithery).
 
 ## License

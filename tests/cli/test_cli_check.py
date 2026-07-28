@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -283,3 +285,54 @@ class TestCheckTypeScriptScope:
         url = f"file:///{remote.as_posix()}"
         payload = json.loads(_invoke("scan", url, "--scope", "tests", "-f", "json").stdout)
         assert "MCP102" in {f["rule_id"] for f in payload["findings"]}
+
+
+# The stdlib MCP server fixture for --runtime capture (spawned with sys.executable).
+RUNTIME_SERVER = FIXTURES.parent / "runtime_mcp_server.py"
+
+
+def _runtime_command() -> str:
+    # shlex.quote round-trips through runtime.split_command even on Windows
+    # backslash paths (single-quoted literals keep backslashes verbatim).
+    return f"{shlex.quote(sys.executable)} {shlex.quote(RUNTIME_SERVER.as_posix())}"
+
+
+class TestCheckRuntime:
+    """``--runtime --command`` spawns the server and captures tools/list."""
+
+    def test_captures_tools_not_unknown(self):
+        r = _invoke("check", "--runtime", "--command", _runtime_command())
+        assert r.exit_code == 0
+        assert "UNKNOWN" not in r.stdout
+        assert "test-runtime-server" in r.stdout  # server name from initialize
+        assert "runtime" in r.stdout  # the (runtime, 2 tools) qualifier
+        assert "2 tools" in r.stdout
+
+    def test_scan_lists_runtime_tools(self):
+        r = _invoke("scan", "--runtime", "--command", _runtime_command(), "-f", "json")
+        assert r.exit_code == 0
+        payload = json.loads(r.stdout)
+        assert payload["server"]["tools"] == 2
+
+    def test_runtime_without_command_is_exit_two(self):
+        r = _invoke("check", "--runtime")
+        assert r.exit_code == 2
+        assert "--command" in (r.stderr or r.stdout)
+
+    def test_runtime_and_manifest_mutually_exclusive(self):
+        r = _invoke(
+            "check",
+            "--runtime",
+            "--command",
+            _runtime_command(),
+            "--manifest",
+            str(FIXTURES / "clean_manifest.json"),
+        )
+        assert r.exit_code == 2
+        assert "mutually exclusive" in (r.stderr or r.stdout)
+
+    def test_bad_command_is_friendly_exit_two(self):
+        r = _invoke("check", "--runtime", "--command", "no_such_exe_xyz_42")
+        assert r.exit_code == 2
+        assert "runtime capture failed" in (r.stderr or r.stdout)
+        assert "Traceback" not in (r.stderr or r.stdout)  # no leaked traceback

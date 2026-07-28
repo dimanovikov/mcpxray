@@ -91,10 +91,10 @@ def verdict(doc: McpServer, score_result: ScoreResult | None = None) -> Verdict:
 
     Tier rules (checked in order):
 
-    * **unknown** — static source with zero tools extracted (a non-Python server,
-      or a tree with no ``@mcp.tool``). A manifest with zero tools is *not*
-      unknown: the user handed it to us deliberately, so "couldn't check" would
-      be misleading.
+    * **unknown** — static source with zero tools extracted (a language mcpscore
+      doesn't parse, or a tree with no tool registrations). A manifest/runtime
+      capture with zero tools is *not* unknown: the user handed it to us
+      deliberately, so "couldn't check" would be misleading.
     * **danger** — any ERROR-severity finding (poisoning / secrets / RCE).
     * **caution** — no errors, but at least one WARNING.
     * **ok** — nothing found.
@@ -104,8 +104,9 @@ def verdict(doc: McpServer, score_result: ScoreResult | None = None) -> Verdict:
             tier=TIER_UNKNOWN,
             headline="Couldn't verify statically",
             recommendation=(
-                "Couldn't verify statically; review manually, or capture the "
-                "server's tools/list and re-run with --manifest."
+                "Couldn't verify statically; review manually, capture the server's "
+                "tools/list and re-run with --manifest, or use --runtime --command "
+                "to let mcpscore capture it live."
             ),
         )
 
