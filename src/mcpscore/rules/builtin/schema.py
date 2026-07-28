@@ -72,3 +72,44 @@ class SchemaCompatibility(Rule):
                     file=tool.source_path,
                     line=tool.line,
                 )
+
+
+@register_rule
+class SchemaImplDrift(Rule):
+    """MCP105 — a tool's declared inputSchema disagrees with its handler.
+
+    Caught when the handler destructures its arguments (so we know what it reads):
+    a parameter the schema declares but the handler ignores (clients must send
+    data the tool never uses), or one the handler reads but the schema doesn't
+    declare (unvalidated input bypasses the schema). Skipped when
+    :attr:`Tool.handler_params` is ``None`` — i.e. a bare ``args`` handler,
+    Python (where the schema *is* the signature), or a manifest tool.
+    """
+
+    id = "MCP105"
+    severity = SEVERITY_WARNING
+    risk = RISK_MEDIUM
+
+    def check(self, doc: McpServer):  # type: ignore[override]
+        for tool in doc.tools:
+            if tool.handler_params is None:
+                continue  # can't compare — undeterminable handler signature
+            declared = set((tool.input_schema or {}).get("properties") or {})
+            used = set(tool.handler_params)
+            ignored = sorted(declared - used)  # schema declares, handler doesn't read
+            unvalidated = sorted(used - declared)  # handler reads, schema doesn't validate
+            if not (ignored or unvalidated):
+                continue
+            parts: list[str] = []
+            if ignored:
+                parts.append(f"schema declares {ignored} but the handler doesn't read them")
+            if unvalidated:
+                parts.append(f"handler reads {unvalidated} but the schema doesn't declare them")
+            yield Diagnostic(
+                self.id,
+                self.severity,
+                f"tool '{tool.name}': " + "; ".join(parts),
+                tool=tool.name,
+                file=tool.source_path,
+                line=tool.line,
+            )

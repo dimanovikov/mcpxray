@@ -78,11 +78,11 @@ Each finding is a `Diagnostic` with a severity (`error`/`warning`/`info`). **Any
 | MCP102 | Token/Secret Exposure | secrets/tokens/API keys in source (regex: private keys, `sk-`, AWS, GitHub, GitLab, Slack, Google, hardcoded creds) | error |
 | MCP103 | Excess Permissions (MCP04) | dangerous capabilities: `os.system`, `eval`/`exec`, `pickle.loads`, `subprocess(..., shell=True)` | error |
 | MCP104 | — (hygiene) | weak schema: no `required`, or a property with an empty `{}` schema | warning |
+| MCP105 | — (correctness) | schema/implementation drift: a tool's declared `inputSchema` disagrees with its handler's parameters | warning |
 | MCP106 | — (compat) | JSON-Schema incompatibilities that break Cursor/ChatGPT (`$ref`/`oneOf`/`anyOf`/`allOf`, missing `type`) | warning |
 | MCP107 | — (context) | missing or oversized `description` (eats the model's context budget) | warning |
-| MCP108 | Supply-Chain (MCP05) | unpinned dependencies with no lockfile | warning |
-
-> Roadmap: MCP105 (schema/implementation drift) and MCP109 (transport auth / TLS) arrive in v0.2 — both need runtime or config input v0.1's static core doesn't have yet.
+| MCP108 | Supply-Chain (MCP05) | unpinned dependencies with no lockfile (pip **and** npm — `^`/`~`/`>=`/`*` drift) | warning |
+| MCP109 | — (transport) | HTTP/SSE transport exposed without TLS or authentication | warning |
 
 ## Score & grades
 

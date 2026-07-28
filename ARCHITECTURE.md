@@ -12,7 +12,7 @@
         │  McpServer (the IR)
         ▼
 ┌───────────────┐   @register_rule
-│    Rules      │   MCP101..MCP108  →  Diagnostic{rule_id, severity, file, line, …}
+│    Rules      │   MCP101..MCP109  →  Diagnostic{rule_id, severity, file, line, …}
 └───────┬───────┘   run_all(): applies every rule, sorts errors-first
         │  doc.diagnostics
         ▼
@@ -56,8 +56,9 @@ Every extractor emits one, every rule consumes one. Defined in `src/mcpscore/ir.
 Builtins live in `rules/builtin/`:
 - `descriptions.py` — MCP101 (poisoning: 8 injection-signature regexes + hidden Unicode `Cf` chars), MCP107 (hygiene).
 - `source.py` — MCP102 (secrets), MCP103 (dangerous capabilities). Gated on `doc.sources`.
-- `schema.py` — MCP104 (weak schema), MCP106 (JSON-Schema compatibility).
-- `supply.py` — MCP108 (unpinned deps, no lockfile).
+- `schema.py` — MCP104 (weak schema), MCP106 (JSON-Schema compatibility), MCP105 (schema/handler drift; compares `tool.handler_params`).
+- `supply.py` — MCP108 (unpinned deps, no lockfile; pip **and** npm semver).
+- `transport.py` — MCP109 (HTTP/SSE transport without TLS or auth). Gated on `doc.sources`.
 
 ## Score
 

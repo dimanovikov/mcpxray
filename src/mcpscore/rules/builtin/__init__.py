@@ -2,4 +2,4 @@
 
 from __future__ import annotations
 
-from mcpscore.rules.builtin import descriptions, schema, source, supply  # noqa: F401
+from mcpscore.rules.builtin import descriptions, schema, source, supply, transport  # noqa: F401

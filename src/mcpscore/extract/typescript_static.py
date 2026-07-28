@@ -32,7 +32,7 @@ to JSON Schema best-effort.
 Every rule is language-agnostic text scanning over
 :attr:`McpServer.sources`, so populating ``sources`` with each file's text gives
 a TS server secret (MCP102) / RCE (MCP103) / poisoning scanning for free; the
-tool name + description + schema we extract here feed MCP101/104/106/107.
+tool name + description + schema we extract here feed MCP101/104/105/106/107.
 """
 
 from __future__ import annotations
@@ -301,9 +301,57 @@ def _field_schema(text: str, field: str) -> dict:
 def _is_handler(a: str) -> bool:
     """True if an argument looks like executable code (the trailing handler)."""
     a = a.lstrip()
-    if a.startswith(("function", "async function")):
-        return True
-    # arrow ``=>`` at top level (ignoring ``=>`` inside string literals)
+    return a.startswith(("function", "async function")) or _arrow_index(a) != -1
+
+
+def _handler_params(a: str) -> list[str] | None:
+    """Destructured parameter names a handler reads, for MCP105 drift checking.
+
+    * arrow ``(params) => …`` or ``async (params) => …`` — params are the last
+      ``(…)`` group before ``=>``;
+    * ``function (params) {…}`` — the first ``(…)`` group.
+
+    Only an *object-destructured* first param (``{a, b}``) is comparable: returns
+    the names (``[a, b]``). A bare identifier (``args``) returns ``None`` (we
+    can't know what it reads); an empty ``()`` returns ``[]`` (reads nothing).
+    Renames (``a: x``), defaults (``a = 1``) and rest (``...rest``) are handled.
+    """
+    a = a.strip()
+    arrow = _arrow_index(a)
+    if arrow != -1:
+        open_idx = a.rfind("(", 0, arrow)
+    else:
+        fm = re.match(r"(?:async\s+)?function\s*\*?\s*\(", a)
+        if not fm:
+            return None
+        open_idx = a.find("(", fm.start())
+    if open_idx == -1:
+        return None
+    close = _match_bracket(a, open_idx, "(", ")")
+    if close == -1:
+        return None
+    head = a[open_idx + 1 : close].strip()
+    if not head:
+        return []  # handler takes no params
+    if not head.startswith("{"):
+        return None  # bare identifier — can't tell what it reads
+    end = _match_bracket(head, 0, "{", "}")
+    body = head[1 : end if end != -1 else len(head)]
+    names: list[str] = []
+    for part in _split_top_level(body):
+        token = part.strip()
+        if not token or token.startswith("..."):
+            continue
+        token = token.split("=", 1)[0].strip()  # drop default value
+        token = token.split(":", 1)[0].strip()  # drop rename / type annotation
+        m = re.match(r"[A-Za-z_$][\w$]*", token)
+        if m:
+            names.append(m.group(0))
+    return names
+
+
+def _arrow_index(a: str) -> int:
+    """Index of the top-level ``=>`` in ``a`` (skipping those inside strings), or -1."""
     i = 0
     n = len(a)
     while i < n:
@@ -312,9 +360,9 @@ def _is_handler(a: str) -> bool:
             i = _skip_string(a, i)
             continue
         if c == "=" and a[i + 1 : i + 2] == ">":
-            return True
+            return i
         i += 1
-    return False
+    return -1
 
 
 def _tool_name(arg: str) -> str | None:
@@ -344,9 +392,13 @@ def _extract_highlevel(text: str, posix: str, server: McpServer) -> None:
 
         desc: str | None = None
         schema: dict = {}
+        handler: str | None = None
         for arg in args[1:]:
             a = arg.strip()
-            if not a or _is_handler(a):
+            if not a:
+                continue
+            if _is_handler(a):
+                handler = a  # captured for MCP105 schema/impl-drift checking
                 continue
             # registerTool config object: { description, inputSchema, ... }
             if a.startswith("{") and (_has_field(a, "description") or _has_field(a, "inputSchema")):
@@ -371,6 +423,7 @@ def _extract_highlevel(text: str, posix: str, server: McpServer) -> None:
                 input_schema=schema,
                 source_path=posix,
                 line=_line_of(text, m.start()),
+                handler_params=_handler_params(handler) if handler else None,
             )
         )
 

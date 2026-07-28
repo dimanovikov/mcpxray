@@ -66,6 +66,12 @@ class Tool:
     source_path: str | None = None  # file the tool was declared in
     line: int | None = None  # 1-indexed line of the declaration
     runtime_only: bool = False  # True when learned from a manifest, not source
+    # Destructured handler parameter names, for MCP105 (schema/impl drift).
+    # ``None`` = undeterminable (bare ``args`` identifier, Python, or a manifest
+    # tool with no source handler) → the rule can't compare and skips.
+    # ``[]``   = the handler explicitly takes no params (``()``).
+    # ``[...]``= the names a destructured ``{a, b}`` handler actually reads.
+    handler_params: list[str] | None = None
 
 
 @dataclass

@@ -31,9 +31,11 @@ _RULE_PHRASE = {
     "MCP102": "Leaked secrets/keys in source",
     "MCP103": "Dangerous code execution (eval/exec/shell)",
     "MCP104": "Weak or empty input schemas",
+    "MCP105": "Schema/handler drift (declared vs actual params)",
     "MCP106": "JSON-Schema incompatibilities (may break Cursor/ChatGPT)",
     "MCP107": "Tool descriptions need cleanup",
     "MCP108": "Unpinned dependencies (supply-chain risk)",
+    "MCP109": "Insecure network transport (no TLS/auth)",
 }
 
 # Display order for reasons: scariest first so the top of the card leads with
@@ -46,6 +48,8 @@ _RULE_PRIORITY = {
     "MCP104": 4,
     "MCP106": 5,
     "MCP107": 6,
+    "MCP105": 7,
+    "MCP109": 8,
 }
 
 _MAX_REASONS = 5

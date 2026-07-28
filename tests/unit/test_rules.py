@@ -96,6 +96,11 @@ class TestRules:
         assert "MCP104" in ids
         assert "MCP106" in ids
 
+    def test_mcp105_schema_handler_drift(self):
+        ids, _ = _run(FIXTURES / "typescript_drift")
+        # exactly one drift finding — "mismatch" drifts, "consistent" does not
+        assert ids.count("MCP105") == 1
+
     def test_findings_sorted_errors_first(self):
         ids, _ = _run(FIXTURES / "leaky")
         assert ids[0] in ("MCP102", "MCP103")  # both are ERROR severity
@@ -104,3 +109,94 @@ class TestRules:
         _, doc = _run(FIXTURES / "poisoned")
         assert doc.has_errors
         assert doc.errors  # property returns the error list
+
+
+class TestMCP105Drift:
+    """Schema/implementation drift — unit checks on the rule directly."""
+
+    @staticmethod
+    def _doc(schema: dict, handler_params):
+        from mcpscore.ir import McpServer, ServerMeta, Tool
+
+        return McpServer(
+            meta=ServerMeta(language="typescript"),
+            tools=[Tool(name="t", input_schema=schema, handler_params=handler_params)],
+        )
+
+    @staticmethod
+    def _ids(doc):
+        from mcpscore.rules.builtin.schema import SchemaImplDrift
+
+        return [d.rule_id for d in SchemaImplDrift().check(doc)]
+
+    def test_skipped_when_handler_params_none(self):
+        # bare ``args`` / Python / manifest → undeterminable, can't compare.
+        doc = self._doc({"type": "object", "properties": {"a": {"type": "string"}}}, None)
+        assert self._ids(doc) == []
+
+    def test_drift_both_directions(self):
+        doc = self._doc(
+            {"type": "object", "properties": {"a": {"type": "string"}, "b": {"type": "string"}}},
+            ["a", "c"],
+        )
+        assert self._ids(doc) == ["MCP105"]  # b ignored, c unvalidated
+
+    def test_no_drift_when_consistent(self):
+        doc = self._doc({"type": "object", "properties": {"x": {"type": "number"}}}, ["x"])
+        assert self._ids(doc) == []
+
+    def test_empty_handler_with_schema_is_drift(self):
+        # handler takes () but the schema declares params → handler ignores them.
+        doc = self._doc({"type": "object", "properties": {"a": {"type": "string"}}}, [])
+        assert self._ids(doc) == ["MCP105"]
+
+
+class TestMCP109Transport:
+    """Insecure network transport — no TLS / no auth."""
+
+    @staticmethod
+    def _ids(src: str):
+        from mcpscore.ir import McpServer, ServerMeta
+        from mcpscore.rules.builtin.transport import InsecureTransport
+
+        doc = McpServer(meta=ServerMeta(language="typescript"))
+        doc.sources["server.ts"] = src
+        return [d.rule_id for d in InsecureTransport().check(doc)]
+
+    def test_stdio_not_flagged(self):
+        src = "const t = new StdioServerTransport();\n"
+        assert self._ids(src) == []
+
+    def test_no_transport_not_flagged(self):
+        assert self._ids("const x = 1;\n") == []
+
+    def test_http_transport_no_tls_no_auth(self):
+        src = 'const t = new StreamableHTTPServerTransport({ url: "http://example.com/mcp" });\n'
+        ids = self._ids(src)
+        assert ids.count("MCP109") == 2  # both: no TLS and no auth
+
+    def test_https_suppresses_tls_finding(self):
+        src = 'new StreamableHTTPServerTransport({ url: "https://example.com/mcp" });\n'
+        assert self._ids(src) == ["MCP109"]  # only no-auth remains
+
+    def test_auth_suppresses_auth_finding(self):
+        src = (
+            'new StreamableHTTPServerTransport({ url: "http://example.com" });\n'
+            "async function authenticate(token) { return true; }\n"
+        )
+        assert self._ids(src) == ["MCP109"]  # only no-TLS remains
+
+    def test_loopback_http_not_tls_flagged(self):
+        # http on localhost isn't a TLS issue; only the missing-auth finding fires.
+        src = 'new SSEServerTransport("/mcp"); const url = "http://localhost:3000";\n'
+        assert self._ids(src) == ["MCP109"]
+
+    def test_python_sse_transport_flagged(self):
+        src = 'mcp.run(transport="sse")\n'
+        assert self._ids(src) == ["MCP109"]
+
+    def test_existing_fixtures_not_flagged(self):
+        # stdio / FastMCP servers must not trip the transport rule.
+        for fx in ("clean", "leaky", "poisoned", "bare", "typescript_clean"):
+            ids, _ = _run(FIXTURES / fx)
+            assert "MCP109" not in ids, f"{fx} unexpectedly flagged MCP109"
