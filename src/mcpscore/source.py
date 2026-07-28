@@ -9,7 +9,6 @@ concern, not extraction: extractors build an IR from an already-local path.
 
 from __future__ import annotations
 
-import os
 import re
 import shutil
 import subprocess
@@ -23,7 +22,12 @@ try:  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - Python 3.10
     import tomli as tomllib  # type: ignore[no-redef]
 
-from mcpscore.extract.python_static import _SKIP_DIRS, _is_test_dir
+from mcpscore.extract.python_static import _PY_EXTS, _iter_source_files
+from mcpscore.extract.typescript_static import _TS_EXTS
+
+# Combined source extensions so scope detection narrows a TS repo the same way
+# it already narrows a Python one (rather than scanning it wholesale).
+_SOURCE_EXTS = _PY_EXTS + _TS_EXTS
 
 # Hosts we treat as remote VCS URLs even without an http(s):// scheme.
 _VCS_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
@@ -109,20 +113,25 @@ def _repo_name(url: str) -> str:
 
 # --- scope: locate the *server* source inside a tree -------------------------
 
-# A cheap textual signal for an MCP tool registration/decorator. Catches both the
-# decorator form (``@mcp.tool()``) and the registration call (``server.tool(...)``);
-# good enough to bucket files by directory for the scope heuristic.
-_TOOL_RE = re.compile(r"\.tool\s*\(|^\s*@tool\b", re.MULTILINE)
+# A cheap textual signal for an MCP tool registration/decorator. Catches the
+# Python decorator (``@mcp.tool()``), the high-level registration call
+# (``server.tool(...)`` / ``server.registerTool(...)``) used by both SDKs, and the
+# low-level TS handler anchor (``ListToolsRequestSchema``) — good enough to bucket
+# files by directory for the scope heuristic.
+_TOOL_RE = re.compile(
+    r"\.\s*(?:tool|registerTool)\s*\(" r"|ListToolsRequestSchema" r"|^\s*@tool\b",
+    re.MULTILINE,
+)
 
 
-def _has_python(path: Path) -> bool:
-    """True if ``path`` contains any ``.py`` file (a coarse "looks like code" signal)."""
-    return any(p.suffix == ".py" for p in path.rglob("*.py"))
+def _has_source(path: Path) -> bool:
+    """True if ``path`` contains any Python or TypeScript source (a coarse "is code" signal)."""
+    return any(True for _ in _iter_source_files(path, _SOURCE_EXTS))
 
 
 def _has_tool_call(path: Path) -> bool:
-    """True if any ``.py`` under ``path`` registers an MCP tool (``.tool(`` / ``@tool``)."""
-    for p in path.rglob("*.py"):
+    """True if any source file under ``path`` registers an MCP tool."""
+    for p in _iter_source_files(path, _SOURCE_EXTS):
         try:
             if _TOOL_RE.search(p.read_text(encoding="utf-8")):
                 return True
@@ -160,23 +169,18 @@ def _entry_from_scripts(root: Path) -> Path | None:
 def _entry_from_tools(root: Path) -> Path | None:
     """The immediate subdirectory of ``root`` holding the most tool registrations."""
     counts: dict[Path, int] = {}
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not _is_test_dir(d)]
-        for name in filenames:
-            if not name.endswith(".py"):
-                continue
-            f = Path(dirpath) / name
-            try:
-                n = len(_TOOL_RE.findall(f.read_text(encoding="utf-8")))
-            except OSError:
-                continue
-            if n == 0:
-                continue
-            rel = f.relative_to(root).parts
-            if len(rel) < 2:
-                continue  # file sits directly under root — narrowing would be a no-op
-            bucket = root / rel[0]
-            counts[bucket] = counts.get(bucket, 0) + n
+    for f in _iter_source_files(root, _SOURCE_EXTS):
+        try:
+            n = len(_TOOL_RE.findall(f.read_text(encoding="utf-8")))
+        except OSError:
+            continue
+        if n == 0:
+            continue
+        rel = f.relative_to(root).parts
+        if len(rel) < 2:
+            continue  # file sits directly under root — narrowing would be a no-op
+        bucket = root / rel[0]
+        counts[bucket] = counts.get(bucket, 0) + n
     if not counts:
         return None
     return max(counts, key=counts.get)
@@ -186,14 +190,14 @@ def _detect_entry_dir(root: Path) -> Path:
     """Best-effort locate the server source dir within ``root``; fall back to ``root``.
 
     Order: ``[project.scripts]`` entry point → the immediate subdir with the most
-    ``.tool(`` registrations → ``src/`` (if it holds any Python) → ``root``. Only
+    tool registrations → ``src/`` (if it holds any source) → ``root``. Only
     narrows to a strict subdirectory on positive evidence, so an ambiguous tree is
     scanned wholesale (current behaviour) rather than wrongly narrowed.
     """
     return (
         _entry_from_scripts(root)
         or _entry_from_tools(root)
-        or ((root / "src") if (root / "src").is_dir() and _has_python(root / "src") else None)
+        or ((root / "src") if (root / "src").is_dir() and _has_source(root / "src") else None)
         or root
     )
 

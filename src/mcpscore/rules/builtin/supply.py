@@ -2,14 +2,32 @@
 
 from __future__ import annotations
 
+import re
+
 from mcpscore.ir import RISK_MEDIUM, SEVERITY_WARNING, Diagnostic, McpServer
 from mcpscore.rules.base import Rule, register_rule
 
+# npm: an exact bare version is reproducible; carets/tilde/ranges/wildcards/tags
+# drift. Pre-release/build suffixes (``1.2.3-beta.1``) still pin exactly. A bare
+# package name (``flask``) or a pip range (``>=2``) deliberately fails to match.
+_NPM_PIN_RE = re.compile(r"^[v=]?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
+
 
 def _is_pinned(spec: str) -> bool:
-    # Exact pin (==1.2.3) or compatible release (~=1.2) is reproducible; anything
-    # else (>=, <, *, latest) drifts between installs.
-    return "==" in spec or spec.startswith("~=")
+    """True if ``spec`` makes an install reproducible.
+
+    Covers both ecosystems an MCP server can declare:
+    * **pip** — exact ``==1.2.3`` or compatible-release ``~=1.2``.
+    * **npm** — an exact bare version ``1.2.3`` / ``v1.2.3`` / ``=1.2.3``.
+    Ranges and floating tags (``>=``, ``^``, ``~``, ``*``, ``latest``, ``1.x``)
+    are *not* pinned — they resolve differently between installs.
+    """
+    spec = spec.strip()
+    if not spec:
+        return False
+    if "==" in spec or spec.startswith("~="):  # pip
+        return True
+    return bool(_NPM_PIN_RE.match(spec))  # npm exact version
 
 
 @register_rule

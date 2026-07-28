@@ -13,6 +13,11 @@ from mcpscore.extract.python_static import (
     _extract_function,
     _iter_python_files,
 )
+from mcpscore.extract.typescript_static import (
+    TypescriptExtractor,
+    _iter_typescript_files,
+    _zod_to_schema,
+)
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "servers"
 
@@ -166,9 +171,96 @@ class TestSkipDirs:
         assert files == ["test_app.py"]
 
 
+# --- TypeScript static extractor ---------------------------------------------
+
+
+class TestTypescriptExtractor:
+    def setup_method(self):
+        self.server = TypescriptExtractor().extract(FIXTURES / "typescript_clean")
+
+    def test_language(self):
+        assert self.server.meta.language == "typescript"
+
+    def test_finds_highlevel_tools(self):
+        assert sorted(t.name for t in self.server.tools) == ["add", "greet", "tags"]
+
+    def test_registertool_description_and_schema(self):
+        greet = next(t for t in self.server.tools if t.name == "greet")
+        assert greet.description == "Greet a user by name."
+        assert greet.input_schema["properties"] == {"name": {"type": "string"}}
+        assert greet.input_schema["required"] == ["name"]
+
+    def test_tool_shorthand_schema(self):
+        add = next(t for t in self.server.tools if t.name == "add")
+        assert add.description == "Add two numbers."
+        assert add.input_schema["properties"]["a"] == {"type": "number"}
+        assert sorted(add.input_schema["required"]) == ["a", "b"]
+
+    def test_zod_array_param(self):
+        tags = next(t for t in self.server.tools if t.name == "tags")
+        assert tags.input_schema["properties"]["items"] == {"type": "array"}
+
+    def test_provenance(self):
+        for t in self.server.tools:
+            assert t.source_path.endswith("server.ts")
+            assert t.line and t.line > 0
+            assert not t.runtime_only
+
+    def test_sources_populated_for_secret_scanning(self):
+        # Populating .sources is what lets MCP102/103 scan .ts text for free.
+        assert any(p.endswith("server.ts") for p in self.server.sources)
+
+    def test_lowlevel_tools_parsed(self):
+        server = TypescriptExtractor().extract(FIXTURES / "typescript_lowlevel")
+        assert [t.name for t in server.tools] == ["ping"]
+        ping = server.tools[0]
+        assert ping.description == "Health-check ping."
+        assert ping.input_schema["properties"]["host"] == {"type": "string"}
+        assert ping.input_schema["required"] == ["host"]
+
+    def test_applies_to(self):
+        ext = TypescriptExtractor()
+        assert ext.applies_to(FIXTURES / "typescript_clean")
+        assert ext.applies_to(FIXTURES / "typescript_clean" / "server.ts")
+        assert not ext.applies_to(FIXTURES / "clean_manifest.json")
+
+    def test_python_wins_mixed_repo(self, tmp_path):
+        # .py present → PythonExtractor applies; TS must not shadow it.
+        (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+        (tmp_path / "b.ts").write_text('server.tool("x", "y", {}, () => ({}));\n', encoding="utf-8")
+        assert extractor_for(tmp_path).__class__.__name__ == "PythonExtractor"
+
+    def test_ts_wins_pure_ts_repo(self, tmp_path):
+        (tmp_path / "s.ts").write_text('server.tool("x", "y", {}, () => ({}));\n', encoding="utf-8")
+        assert extractor_for(tmp_path).__class__.__name__ == "TypescriptExtractor"
+
+    def test_iter_skips_declaration_files(self, tmp_path):
+        (tmp_path / "real.ts").write_text("export const x = 1;\n", encoding="utf-8")
+        (tmp_path / "types.d.ts").write_text("export declare const y: number;\n", encoding="utf-8")
+        assert [p.name for p in _iter_typescript_files(tmp_path)] == ["real.ts"]
+
+    def test_zod_to_schema_mapping(self):
+        schema = _zod_to_schema("a: z.string(), b: z.number(), c: z.integer(), d: z.boolean()")
+        assert schema == {
+            "type": "object",
+            "properties": {
+                "a": {"type": "string"},
+                "b": {"type": "number"},
+                "c": {"type": "integer"},
+                "d": {"type": "boolean"},
+            },
+            "required": ["a", "b", "c", "d"],
+        }
+
+    def test_zod_unknown_type_skipped_not_emptied(self):
+        # z.custom() is unmappable → the prop is dropped, NOT emitted as {} (an
+        # empty {} prop would falsely trip MCP104 "parameter has no type").
+        schema = _zod_to_schema("a: z.string(), b: z.custom()")
+        assert schema["properties"] == {"a": {"type": "string"}}
+        assert schema["required"] == ["a"]
+
+
 # --- manifest extractor ------------------------------------------------------
-
-
 class TestManifestExtractor:
     def test_extracts_runtime_tools(self):
         ext = extractor_for(FIXTURES / "clean_manifest.json")
@@ -194,7 +286,13 @@ class TestManifestExtractor:
 class TestRegistry:
     def test_builtin_extractors_registered(self):
         ids = {type(e).__name__ for e in (cls() for cls in extractors())}
-        assert {"PythonExtractor", "ManifestExtractor"} <= ids
+        assert {"PythonExtractor", "TypescriptExtractor", "ManifestExtractor"} <= ids
+
+    def test_python_registered_before_typescript(self):
+        # Registration order decides mixed-repo resolution: Python must win a tree
+        # that has both .py and .ts source.
+        names = [cls.__name__ for cls in extractors()]
+        assert names.index("PythonExtractor") < names.index("TypescriptExtractor")
 
     def test_extractor_for_dir(self):
         assert extractor_for(FIXTURES / "clean").__class__.__name__ == "PythonExtractor"

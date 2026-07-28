@@ -40,6 +40,16 @@ def unpinned() -> Path:
     return FIXTURES / "unpinned"
 
 
+@pytest.fixture
+def typescript_clean() -> Path:
+    return FIXTURES / "typescript_clean"
+
+
+@pytest.fixture
+def typescript_leaky() -> Path:
+    return FIXTURES / "typescript_leaky"
+
+
 class TestCheckTiers:
     def test_clean_is_ok_exit_zero(self, clean):
         r = _invoke("check", str(clean))
@@ -207,3 +217,69 @@ class TestCheckScope:
         r = _invoke("check", url, "--scope", "src/myserver")
         assert r.exit_code == 0
         assert "OK" in r.stdout
+
+
+class TestCheckTypeScript:
+    """A TypeScript server must be analysed statically (not ⚪ UNKNOWN)."""
+
+    def test_clean_ts_is_ok_not_unknown(self, typescript_clean):
+        r = _invoke("check", str(typescript_clean))
+        assert r.exit_code == 0
+        assert "OK" in r.stdout
+        assert "UNKNOWN" not in r.stdout
+        assert "typescript" in r.stdout  # the (typescript, N tools) qualifier
+
+    def test_leaky_ts_is_danger(self, typescript_leaky):
+        # Proves .sources text flows to MCP102 — a hardcoded key in a .ts file.
+        r = _invoke("check", str(typescript_leaky))
+        assert r.exit_code == 1
+        assert "DANGER" in r.stdout
+
+    def test_scan_reports_ts_server(self, typescript_clean):
+        payload = json.loads(_invoke("scan", str(typescript_clean), "-f", "json").stdout)
+        assert payload["server"]["language"] == "typescript"
+        assert payload["server"]["tools"] == 3
+
+
+@needs_git
+class TestCheckTypeScriptScope:
+    """A cloned TS repo is scoped to its server source, not the test tree."""
+
+    @staticmethod
+    def _ts_remote(parent: Path) -> Path:
+        remote = parent / "remote"
+        remote.mkdir(parents=True)
+        (remote / "package.json").write_text(
+            '{"name": "ts-demo", "version": "0.0.0"}\n', encoding="utf-8"
+        )
+        (remote / "src").mkdir(parents=True)
+        (remote / "src" / "server.ts").write_text(
+            "const s = { tool: () => {} };\n"
+            's.tool("ping", "health check", {}, async () => ({}));\n',
+            encoding="utf-8",
+        )
+        (remote / "tests").mkdir()
+        (remote / "tests" / "keys.test.ts").write_text(
+            'const KEY = "sk-1234567890abcdef1234567890abcdef";\n', encoding="utf-8"
+        )
+        for args in (
+            ["git", "init", "-q"],
+            ["git", "add", "."],
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"],
+        ):
+            subprocess.run(args, cwd=remote, check=True)
+        return remote
+
+    def test_auto_scope_excludes_ts_test_secrets(self, tmp_path):
+        # Auto-scoped to src/ (the only dir registering a tool): the fake key in
+        # tests/ is never scanned.
+        remote = self._ts_remote(tmp_path)
+        url = f"file:///{remote.as_posix()}"
+        payload = json.loads(_invoke("scan", url, "-f", "json").stdout)
+        assert "MCP102" not in {f["rule_id"] for f in payload["findings"]}
+
+    def test_force_scope_tests_finds_the_secret(self, tmp_path):
+        remote = self._ts_remote(tmp_path)
+        url = f"file:///{remote.as_posix()}"
+        payload = json.loads(_invoke("scan", url, "--scope", "tests", "-f", "json").stdout)
+        assert "MCP102" in {f["rule_id"] for f in payload["findings"]}

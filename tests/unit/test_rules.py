@@ -43,6 +43,54 @@ class TestRules:
         assert "MCP108" in ids
         assert doc.dependencies  # extractor parsed pyproject
 
+    def test_mcp108_pip_pinning_predicate(self):
+        from mcpscore.rules.builtin.supply import _is_pinned
+
+        assert _is_pinned("==1.2.3")  # pip exact
+        assert _is_pinned("~=1.2")  # pip compatible-release
+        assert not _is_pinned(">=2")  # pip range
+        assert not _is_pinned("flask")  # bare pip name (the unpinned fixture)
+
+    def test_mcp108_npm_pinning_predicate(self):
+        from mcpscore.rules.builtin.supply import _is_pinned
+
+        assert _is_pinned("1.2.3")  # npm exact
+        assert _is_pinned("v1.2.3")
+        assert _is_pinned("=1.2.3")
+        assert _is_pinned("1.2.3-beta.1")  # exact pre-release
+        assert not _is_pinned("^1.2.3")  # caret range drifts
+        assert not _is_pinned("~1.2.3")  # tilde range drifts
+        assert not _is_pinned(">=1.2.3")
+        assert not _is_pinned("1.x")
+        assert not _is_pinned("*")
+        assert not _is_pinned("latest")
+
+    def test_mcp108_npm_deps_fire_without_lockfile(self, tmp_path):
+        # A TS server whose package.json floats caret ranges and commits no lockfile.
+        (tmp_path / "server.ts").write_text(
+            'const s = { tool: () => {} };\ns.tool("ping", "p", {}, async () => ({}));\n',
+            encoding="utf-8",
+        )
+        (tmp_path / "package.json").write_text(
+            '{"dependencies": {"zod": "^3.0.0", "@modelcontextprotocol/sdk": "^1.0.0"}}\n',
+            encoding="utf-8",
+        )
+        ids, _ = _run(tmp_path)
+        assert "MCP108" in ids  # ranges drift, no lockfile → flagged
+
+    def test_mcp108_npm_lockfile_suppresses(self, tmp_path):
+        # Same floating ranges, but a committed lockfile makes installs reproducible.
+        (tmp_path / "server.ts").write_text(
+            'const s = { tool: () => {} };\ns.tool("ping", "p", {}, async () => ({}));\n',
+            encoding="utf-8",
+        )
+        (tmp_path / "package.json").write_text(
+            '{"dependencies": {"zod": "^3.0.0"}}\n', encoding="utf-8"
+        )
+        (tmp_path / "package-lock.json").write_text('{"lockfileVersion": 3}\n', encoding="utf-8")
+        ids, _ = _run(tmp_path)
+        assert "MCP108" not in ids
+
     def test_mcp104_weak_and_mcp106_incompat_schema(self):
         ids, _ = _run(FIXTURES / "weak_schema.json")
         assert "MCP104" in ids

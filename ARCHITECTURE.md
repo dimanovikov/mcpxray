@@ -7,7 +7,7 @@
         │
         ▼
 ┌───────────────┐   @register_extractor
-│  Extractors   │   PythonExtractor (AST)  ·  ManifestExtractor (tools/list JSON)
+│  Extractors   │   PythonExtractor (AST)  ·  TypescriptExtractor (span scan)  ·  ManifestExtractor (tools/list JSON)
 └───────┬───────┘
         │  McpServer (the IR)
         ▼
@@ -45,7 +45,8 @@ Every extractor emits one, every rule consumes one. Defined in `src/mcpscore/ir.
 
 `Extractor` (`extract/base.py`) is an ABC: `applies_to(path) -> bool` and `extract(path) -> McpServer`. `extractor_for(path)` returns the first registered extractor whose `applies_to` matches (builtins first).
 
-- **`PythonExtractor`** (`extract/python_static.py`) — walks `.py` files (skipping `__pycache__`, `.venv`, `.git`, `node_modules`, `build`), finds functions decorated with `@mcp.tool` / `@server.tool` / bare `@tool`, and lifts: decorator `name=`/`description=` kwargs, the docstring, and type hints. `_annotation_to_schema` maps AST annotation nodes to JSON Schema (`str→string`, `int→integer`, `float→number`, `bool→boolean`, `list[X]→array`, `dict[K,V]→object`, `Optional/Union/PEP-604` → nullable; custom types → `{}`). It also reads a nearby `pyproject.toml` for dependencies and finds lockfiles.
+- **`PythonExtractor`** (`extract/python_static.py`) — walks `.py` files (skipping `__pycache__`, `.venv`, `.git`, `node_modules`, `build`, `tests`/`fixtures`), finds functions decorated with `@mcp.tool` / `@server.tool` / bare `@tool`, and lifts: decorator `name=`/`description=` kwargs, the docstring, and type hints. `_annotation_to_schema` maps AST annotation nodes to JSON Schema (`str→string`, `int→integer`, `float→number`, `bool→boolean`, `list[X]→array`, `dict[K,V]→object`, `Optional/Union/PEP-604` → nullable; custom types → `{}`). It also reads a nearby `pyproject.toml` for dependencies and finds lockfiles.
+- **`TypescriptExtractor`** (`extract/typescript_static.py`) — walks `.ts`/`.tsx`/`.js`/`.jsx`/`.mjs`/`.cjs`/… (skipping `*.d.ts`, minified bundles, and the same noise dirs) and finds tools via a **bracket-matching span scanner** (no parser dep): the high-level `server.tool("name", …)` / `server.registerTool("name", {description, inputSchema}, handler)` forms **and** the low-level `setRequestHandler(ListToolsRequestSchema, … → tools:[…])` form. Zod shapes (`z.string()` …) are mapped to JSON Schema. It reads a nearby `package.json` for dependencies and finds npm lockfiles. Registered after `PythonExtractor`, so Python wins mixed repos and TS wins pure-TS trees.
 - **`ManifestExtractor`** (`extract/manifest.py`) — reads a captured `tools/list` dump (raw `{tools: [...]}` or JSON-RPC `{result: {tools: [...]}}`), language-agnostic. Tools get `runtime_only=True`.
 
 ## Rules

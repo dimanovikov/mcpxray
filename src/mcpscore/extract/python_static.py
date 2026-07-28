@@ -258,14 +258,27 @@ def _find_lockfiles(root: Path, server: McpServer) -> None:
             server.lockfiles.append(name)
 
 
-def _iter_python_files(root: Path) -> list[Path]:
+_PY_EXTS = (".py",)
+
+
+def _iter_source_files(root: Path, exts: tuple[str, ...]) -> list[Path]:
+    """Walk ``root`` for files whose suffix is in ``exts``, pruning noise dirs.
+
+    Shared by the Python and TypeScript extractors (and by scope detection) so the
+    skip-dir policy lives in one place.
+    """
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not _is_test_dir(d)]
         for name in filenames:
-            if name.endswith(".py"):
+            if name.endswith(exts):
                 files.append(Path(dirpath) / name)
     return sorted(files)
+
+
+def _iter_python_files(root: Path) -> list[Path]:
+    """Python source files under ``root`` (``_iter_source_files`` specialised)."""
+    return _iter_source_files(root, _PY_EXTS)
 
 
 @register_extractor

@@ -68,7 +68,7 @@ def _tool_detail(doc: McpServer | None) -> str:
 def _checked_line(v: Verdict, doc: McpServer | None, sr: ScoreResult | None) -> str:
     name = (doc.meta.name if doc is not None and doc.meta else None) or "server"
     if v.tier == TIER_UNKNOWN:
-        return f'mcpscore checked "{name}" {_dash()} no Python @mcp.tool definitions found.'
+        return f'mcpscore checked "{name}" {_dash()} no MCP tool definitions found.'
     score_part = f" {_dash()} score {sr.score}/100 ({sr.grade})" if sr is not None else ""
     return f'mcpscore checked "{name}"{_tool_detail(doc)}{score_part}'
 
@@ -90,8 +90,8 @@ def render_verdict(
 
     if v.tier == TIER_UNKNOWN:
         lines += [
-            "This looks like a non-Python server. mcpscore v0.1 checks Python",
-            "statically; it can't see this server's tools.",
+            "mcpscore couldn't find tool definitions statically (unsupported",
+            "language, or tools built dynamically at runtime).",
             "",
             "To check it anyway:",
             "  1. Capture its tools/list response to a JSON file.",

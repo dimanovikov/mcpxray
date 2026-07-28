@@ -56,7 +56,7 @@ class TestCardContent:
         out = self._out(_doc(tools=0))
         assert "UNKNOWN" in out
         assert "--manifest" in out
-        assert "non-Python" in out
+        assert "couldn't find tool definitions" in out
 
     def test_details_appends_findings(self):
         out = self._out(_doc(Diagnostic("MCP103", SEVERITY_ERROR, "e")), details=True)

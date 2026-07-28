@@ -46,7 +46,7 @@ def _extract(resolved: ResolvedSource) -> McpServer:
     if extractor is None:
         typer.echo(
             f"error: no extractor matched {path} "
-            "(point at a Python source tree, or pass --manifest <tools/list.json>)",
+            "(point at a source tree, or pass --manifest <tools/list.json>)",
             err=True,
         )
         raise typer.Exit(code=2)

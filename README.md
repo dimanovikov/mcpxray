@@ -62,11 +62,11 @@ mcpscore badge path/to/my-mcp-server -o docs/score.svg
 | 🟢 **OK** | nothing found | 0 | Safe to add to Claude Code. |
 | 🟡 **CAUTION** | no errors, but warnings (weak schemas, unpinned deps, …) | 0 | Usable — mind the listed weaknesses. |
 | 🔴 **DANGER** | any error (tool poisoning, leaked secrets, RCE) | 1 | **Do not install.** |
-| ⚪ **UNKNOWN** | no Python `@mcp.tool` found (likely TypeScript / other language) | 0 | Can't check statically — capture `tools/list` and re-run with `--manifest`. |
+| ⚪ **UNKNOWN** | no MCP tools found statically (unsupported language, or tools built at runtime) | 0 | Can't check statically — capture `tools/list` and re-run with `--manifest`. |
 
 The numeric score (0–100, shown as a secondary detail) still follows the error-cap rule below: any error caps it at 60. `--fail-under N` adds a CI gate that is independent of the verdict (it can turn a 🟡/🟢 into an exit-1 without changing the displayed verdict).
 
-> **TypeScript servers:** v0.1 checks Python statically, so a TS server returns ⚪ UNKNOWN with instructions. Capture its `tools/list` and run `mcpscore check --manifest dump.json` to check it. Full TS static extraction lands in v0.2.
+> **Languages:** v0.2 checks **Python and TypeScript** statically (FastMCP `@mcp.tool` and the TS SDK's `server.tool(...)` / `registerTool(...)` / low-level `ListToolsRequestSchema` shapes). Servers in other languages — or tools built dynamically at runtime — still return ⚪ UNKNOWN; capture `tools/list` and run `mcpscore check --manifest dump.json`.
 
 ## Rules
 
