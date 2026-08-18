@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json as _json
 
-from mcpscore.badge import badge_svg
-from mcpscore.ir import SEVERITY_ERROR, SEVERITY_WARNING, Diagnostic
-from mcpscore.report import SUPPORTED_FORMATS, plain, render, sarif
-from mcpscore.report import github as github_fmt
-from mcpscore.report import json as json_fmt
-from mcpscore.score import ScoreResult
+from mcpxray.badge import badge_svg
+from mcpxray.ir import SEVERITY_ERROR, SEVERITY_WARNING, Diagnostic
+from mcpxray.report import SUPPORTED_FORMATS, plain, render, sarif
+from mcpxray.report import github as github_fmt
+from mcpxray.report import json as json_fmt
+from mcpxray.score import ScoreResult
 
 DIAGS = [
     Diagnostic("MCP102", SEVERITY_ERROR, "leaked key", file="srv.py", line=4),
@@ -59,7 +59,7 @@ class TestSarif:
         assert doc["$schema"].endswith("sarif-2.1.0.json")
         assert doc["version"] == "2.1.0"
         run = doc["runs"][0]
-        assert run["tool"]["driver"]["name"] == "mcpscore"
+        assert run["tool"]["driver"]["name"] == "mcpxray"
         assert len(run["results"]) == 2
 
     def test_level_mapping_and_location(self):

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from mcpscore.cli import app
+from mcpxray.cli import app
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "servers"
 runner = CliRunner()

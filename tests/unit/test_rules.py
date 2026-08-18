@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mcpscore.extract import extractor_for
-from mcpscore.rules import run_all
+from mcpxray.extract import extractor_for
+from mcpxray.rules import run_all
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "servers"
 
@@ -44,7 +44,7 @@ class TestRules:
         assert doc.dependencies  # extractor parsed pyproject
 
     def test_mcp108_pip_pinning_predicate(self):
-        from mcpscore.rules.builtin.supply import _is_pinned
+        from mcpxray.rules.builtin.supply import _is_pinned
 
         assert _is_pinned("==1.2.3")  # pip exact
         assert _is_pinned("~=1.2")  # pip compatible-release
@@ -52,7 +52,7 @@ class TestRules:
         assert not _is_pinned("flask")  # bare pip name (the unpinned fixture)
 
     def test_mcp108_npm_pinning_predicate(self):
-        from mcpscore.rules.builtin.supply import _is_pinned
+        from mcpxray.rules.builtin.supply import _is_pinned
 
         assert _is_pinned("1.2.3")  # npm exact
         assert _is_pinned("v1.2.3")
@@ -116,7 +116,7 @@ class TestMCP105Drift:
 
     @staticmethod
     def _doc(schema: dict, handler_params):
-        from mcpscore.ir import McpServer, ServerMeta, Tool
+        from mcpxray.ir import McpServer, ServerMeta, Tool
 
         return McpServer(
             meta=ServerMeta(language="typescript"),
@@ -125,7 +125,7 @@ class TestMCP105Drift:
 
     @staticmethod
     def _ids(doc):
-        from mcpscore.rules.builtin.schema import SchemaImplDrift
+        from mcpxray.rules.builtin.schema import SchemaImplDrift
 
         return [d.rule_id for d in SchemaImplDrift().check(doc)]
 
@@ -156,8 +156,8 @@ class TestMCP109Transport:
 
     @staticmethod
     def _ids(src: str):
-        from mcpscore.ir import McpServer, ServerMeta
-        from mcpscore.rules.builtin.transport import InsecureTransport
+        from mcpxray.ir import McpServer, ServerMeta
+        from mcpxray.rules.builtin.transport import InsecureTransport
 
         doc = McpServer(meta=ServerMeta(language="typescript"))
         doc.sources["server.ts"] = src

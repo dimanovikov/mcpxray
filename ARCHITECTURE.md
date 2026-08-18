@@ -1,6 +1,6 @@
 # Architecture
 
-`mcpscore` is a four-stage pipeline: **extract → lint → score → report**. Each stage is independently pluggable.
+`mcpxray` is a four-stage pipeline: **extract → lint → score → report**. Each stage is independently pluggable.
 
 ```
    PATH / --manifest / --runtime --command
@@ -29,7 +29,7 @@
 
 ## The IR — `McpServer`
 
-Every extractor emits one, every rule consumes one. Defined in `src/mcpscore/ir.py`.
+Every extractor emits one, every rule consumes one. Defined in `src/mcpxray/ir.py`.
 
 - `meta: ServerMeta` — `name`, `language`, `path`, version, repo.
 - `tools: list[Tool]` — `name`, `description`, `input_schema` (JSON Schema), `source_path`, `line`, `runtime_only` (True for manifest-extracted tools).
@@ -76,7 +76,7 @@ A rule may attach a `Fix` (a file + ordered literal `TextEdit`s) to its `Diagnos
 
 ## Extension points
 
-- **Add a rule** — subclass `Rule`, decorate `@register_rule`, implement `check`. For an external package, add an entry-point under `mcpscore.rules`.
-- **Add an extractor** — subclass `Extractor`, decorate `@register_extractor`, implement `applies_to` + `extract`. Entry-point: `mcpscore.extractors`.
+- **Add a rule** — subclass `Rule`, decorate `@register_rule`, implement `check`. For an external package, add an entry-point under `mcpxray.rules`.
+- **Add an extractor** — subclass `Extractor`, decorate `@register_extractor`, implement `applies_to` + `extract`. Entry-point: `mcpxray.extractors`.
 
 See `CONTRIBUTING.md` for copy-pasteable examples.

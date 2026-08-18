@@ -1,8 +1,8 @@
-# mcpscore
+# mcpxray
 
-**Static linter + 0–100 scorecard for MCP servers.** `mcpscore` scans an MCP server's source (or a captured `tools/list` manifest) and flags tool poisoning, leaked secrets, dangerous capabilities, weak schemas and more — **locally, deterministically, in CI**. Point it at a GitHub URL or a local path and get a plain-language verdict — 🟢 ok / 🟡 caution / 🔴 danger — plus a 0–100 score and an SVG badge.
+**Static linter + 0–100 scorecard for MCP servers.** `mcpxray` scans an MCP server's source (or a captured `tools/list` manifest) and flags tool poisoning, leaked secrets, dangerous capabilities, weak schemas and more — **locally, deterministically, in CI**. Point it at a GitHub URL or a local path and get a plain-language verdict — 🟢 ok / 🟡 caution / 🔴 danger — plus a 0–100 score and an SVG badge.
 
-> MCP is the fastest-growing dev protocol since GraphQL (~97M SDK downloads/month), yet 7%+ of servers ship with vulnerabilities and the OWASP MCP Top 10 is a list, not a tool. `mcpscore` is the missing `npm audit` + OpenSSF Scorecard for MCP — static, local-first, OSS.
+> MCP is the fastest-growing dev protocol since GraphQL (~97M SDK downloads/month), yet 7%+ of servers ship with vulnerabilities and the OWASP MCP Top 10 is a list, not a tool. `mcpxray` is the missing `npm audit` + OpenSSF Scorecard for MCP — static, local-first, OSS.
 
 ## Status
 
@@ -13,8 +13,8 @@
 ## Install
 
 ```bash
-uv tool install mcpscore
-# or: pip install mcpscore
+uv tool install mcpxray
+# or: pip install mcpxray
 ```
 
 Requires Python ≥ 3.10.
@@ -22,41 +22,41 @@ Requires Python ≥ 3.10.
 ## Quick start
 
 ```bash
-# Is this MCP server safe to install? Point mcpscore at a GitHub URL or a local path.
-mcpscore check https://github.com/owner/repo
-mcpscore check path/to/my-mcp-server
+# Is this MCP server safe to install? Point mcpxray at a GitHub URL or a local path.
+mcpxray check https://github.com/owner/repo
+mcpxray check path/to/my-mcp-server
 
 # Verdict + the full finding list
-mcpscore check path/to/my-mcp-server --details
+mcpxray check path/to/my-mcp-server --details
 
-# Not a Python server? Hand mcpscore a captured tools/list dump (any language)
-mcpscore check --manifest tools-list.json
+# Not a Python server? Hand mcpxray a captured tools/list dump (any language)
+mcpxray check --manifest tools-list.json
 
-# ...or spawn the server and let mcpscore capture tools/list live (any language)
-mcpscore check --runtime --command "python -m my_mcp_server"
+# ...or spawn the server and let mcpxray capture tools/list live (any language)
+mcpxray check --runtime --command "python -m my_mcp_server"
 
 # --- power users / CI -----------------------------------------------------
 # Lint and print findings (CI gate: --check exits 1 on any ERROR)
-mcpscore scan path/to/my-mcp-server --check -f github
+mcpxray scan path/to/my-mcp-server --check -f github
 # Just the 0–100 score, fail below a bar
-mcpscore score path/to/my-mcp-server --fail-under 80
+mcpxray score path/to/my-mcp-server --fail-under 80
 # Embed an SVG score badge in your README
-mcpscore badge path/to/my-mcp-server -o docs/score.svg
+mcpxray badge path/to/my-mcp-server -o docs/score.svg
 ```
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `mcpscore check <URL \| PATH> [--manifest FILE] [--runtime --command CMD] [--details\|-v] [--fail-under N]` | **Friendly safety verdict** (🟢/🟡/🔴/⚪) + recommendation. Clones a GitHub URL automatically; exits 1 on 🔴 danger or below `--fail-under`. |
-| `mcpscore scan [PATH] [--manifest FILE] [--runtime --command CMD] [-f plain\|json\|github\|sarif\|card] [--check] [--fix] [--diff]` | Lint a server and print findings. `--check` exits 1 on any ERROR (CI gate); `--fix` pins unpinned deps in place, `--diff` previews (local source only). |
-| `mcpscore score [PATH] [--manifest FILE] [--runtime --command CMD] [--fail-under N]` | Print the 0–100 score and grade; exit 1 below `--fail-under`. |
-| `mcpscore badge [PATH \| --score N] [-o FILE]` | Render an SVG score badge (`-o -` for stdout). |
-| `mcpscore version` | Print the version. |
+| `mcpxray check <URL \| PATH> [--manifest FILE] [--runtime --command CMD] [--details\|-v] [--fail-under N]` | **Friendly safety verdict** (🟢/🟡/🔴/⚪) + recommendation. Clones a GitHub URL automatically; exits 1 on 🔴 danger or below `--fail-under`. |
+| `mcpxray scan [PATH] [--manifest FILE] [--runtime --command CMD] [-f plain\|json\|github\|sarif\|card] [--check] [--fix] [--diff]` | Lint a server and print findings. `--check` exits 1 on any ERROR (CI gate); `--fix` pins unpinned deps in place, `--diff` previews (local source only). |
+| `mcpxray score [PATH] [--manifest FILE] [--runtime --command CMD] [--fail-under N]` | Print the 0–100 score and grade; exit 1 below `--fail-under`. |
+| `mcpxray badge [PATH \| --score N] [-o FILE]` | Render an SVG score badge (`-o -` for stdout). |
+| `mcpxray version` | Print the version. |
 
 ## What the verdict means
 
-`mcpscore check` turns findings into a traffic-light verdict instead of a raw score:
+`mcpxray check` turns findings into a traffic-light verdict instead of a raw score:
 
 | Verdict | When | Exit | What to do |
 | --- | --- | --- | --- |
@@ -67,18 +67,18 @@ mcpscore badge path/to/my-mcp-server -o docs/score.svg
 
 The numeric score (0–100, shown as a secondary detail) still follows the error-cap rule below: any error caps it at 60. `--fail-under N` adds a CI gate that is independent of the verdict (it can turn a 🟡/🟢 into an exit-1 without changing the displayed verdict).
 
-> **Languages:** v0.2 checks **Python and TypeScript** statically (FastMCP `@mcp.tool` and the TS SDK's `server.tool(...)` / `registerTool(...)` / low-level `ListToolsRequestSchema` shapes). Servers in other languages — or tools built dynamically at runtime — still return ⚪ UNKNOWN; capture `tools/list` (`mcpscore check --manifest dump.json`), or spawn the server and let mcpscore capture it live (`mcpscore check --runtime --command '<launch>'`).
+> **Languages:** v0.2 checks **Python and TypeScript** statically (FastMCP `@mcp.tool` and the TS SDK's `server.tool(...)` / `registerTool(...)` / low-level `ListToolsRequestSchema` shapes). Servers in other languages — or tools built dynamically at runtime — still return ⚪ UNKNOWN; capture `tools/list` (`mcpxray check --manifest dump.json`), or spawn the server and let mcpxray capture it live (`mcpxray check --runtime --command '<launch>'`).
 
 ## Runtime capture (`--runtime --command`)
 
 When source isn't parseable (compiled, 3rd-party, or tools built dynamically), `--runtime` **spawns the server, performs the MCP JSON-RPC handshake over stdio (`initialize` → `notifications/initialized` → `tools/list`), and feeds the captured tools through the same rules**. It's strictly opt-in and needs an explicit launch command:
 
 ```bash
-mcpscore check --runtime --command "python -m my_mcp_server"
-mcpscore check --runtime --command "node dist/index.js" path/to/server   # cwd = the path
+mcpxray check --runtime --command "python -m my_mcp_server"
+mcpxray check --runtime --command "node dist/index.js" path/to/server   # cwd = the path
 ```
 
-> ⚠️ **`--runtime` executes the server under inspection.** It is opt-in, runs the server with a bounded lifetime (timeouts + guaranteed teardown), and parses its response defensively — but provides **no OS-level sandbox** (no filesystem/network isolation). Only point it at servers you trust; for untrusted servers, run mcpscore inside a container or VM. Prefer `--manifest` when you already have a captured `tools/list`.
+> ⚠️ **`--runtime` executes the server under inspection.** It is opt-in, runs the server with a bounded lifetime (timeouts + guaranteed teardown), and parses its response defensively — but provides **no OS-level sandbox** (no filesystem/network isolation). Only point it at servers you trust; for untrusted servers, run mcpxray inside a container or VM. Prefer `--manifest` when you already have a captured `tools/list`.
 
 Runtime-captured tools carry no source text, so the source-scanning rules (MCP102 secrets / MCP103 RCE / MCP105 drift / MCP109 transport) can't fire — but schema and description rules (MCP104/106/107) still run on the captured definitions.
 
@@ -87,13 +87,13 @@ Runtime-captured tools carry no source text, so the source-scanning rules (MCP10
 The one rule that's mechanically, unambiguously fixable is **MCP108** (unpinned dependencies): `scan --fix` pins a floating spec to its concrete floor version — `requests>=2.30.0` → `requests==2.30.0` (pip), `"zod": "^1.2.3"` → `"zod": "1.2.3"` (npm). It edits `pyproject.toml` / `package.json` in place (atomically); `--diff` prints the same changes as a unified diff and writes nothing.
 
 ```bash
-mcpscore scan path/to/server --diff     # preview (exits 1 if changes are pending — CI-friendly)
-mcpscore scan path/to/server --fix      # apply in place
+mcpxray scan path/to/server --diff     # preview (exits 1 if changes are pending — CI-friendly)
+mcpxray scan path/to/server --fix      # apply in place
 ```
 
 What it does **not** touch:
 
-- **No floor to pin** (`*`, `latest`, a bare `flask`, `>=2` with no patch) → skipped, left for you to resolve against a registry. mcpscore never invents a version.
+- **No floor to pin** (`*`, `latest`, a bare `flask`, `>=2` with no patch) → skipped, left for you to resolve against a registry. mcpxray never invents a version.
 - **Specs with extras/env markers** (`pkg[extra]>=1.2.3`, `pkg>=1.2.3 ; python_version>'3'`) → skipped (rewriting them textually is unsafe).
 - **Every other rule** (MCP101–107, MCP109) → not auto-fixable; these need human judgment (a leaked secret isn't "fixed" by deleting it).
 
@@ -131,7 +131,7 @@ Deductions: `error` = −20, `warning` = −6, `info` = −1, clamped to `[0, 10
 
 ```yaml
 # .github/workflows/mcp.yml
-name: mcpscore
+name: mcpxray
 on: [push, pull_request]
 jobs:
   lint:
@@ -139,27 +139,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv tool install mcpscore
+      - run: uv tool install mcpxray
       # GitHub annotations + SARIF-friendly; fails on any ERROR
-      - run: mcpscore scan ./src --check -f github
+      - run: mcpxray scan ./src --check -f github
       # Optional: fail below a score bar
-      - run: mcpscore score ./src --fail-under 80
+      - run: mcpxray score ./src --fail-under 80
 ```
 
 ## Pre-commit hook
 
-Lint on every commit from any MCP-server repo. Add `mcpscore` to your `.pre-commit-config.yaml`:
+Lint on every commit from any MCP-server repo. Add `mcpxray` to your `.pre-commit-config.yaml`:
 
 ```yaml
 repos:
-  - repo: https://github.com/cloudroad-io/mcpscore
+  - repo: https://github.com/cloudroad-io/mcpxray
     rev: v0.2.0          # pin to a release tag
     hooks:
-      - id: mcpscore
+      - id: mcpxray
         args: ["./src"]  # path to your server source
 ```
 
-The hook runs `mcpscore scan --check <path>` and fails the commit on any ERROR (tool poisoning, leaked secrets, RCE). Requires `mcpscore` on PyPI; if you install it locally instead (`uv tool install mcpscore`), set `language: system` on the hook.
+The hook runs `mcpxray scan --check <path>` and fails the commit on any ERROR (tool poisoning, leaked secrets, RCE). Requires `mcpxray` on PyPI; if you install it locally instead (`uv tool install mcpxray`), set `language: system` on the hook.
 
 ## How it works
 
@@ -170,12 +170,12 @@ The hook runs `mcpscore scan --check <path>` and fails the commit on any ERROR (
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full pipeline and [CONTRIBUTING.md](CONTRIBUTING.md) to add a rule or extractor in one file.
 
-## Why mcpscore
+## Why mcpxray
 
 - **Static, not runtime.** No need to start the server or trust what it reports at runtime — parse definitions from source. Deterministic and CI-safe.
 - **MCP-semantic.** Knows about tool poisoning, schema compatibility, over-permissive tools — things generic SAST and OpenSSF Scorecard can't see.
 - **Source-level locations.** Findings point at `file:line`, not anonymous runtime entries.
-- **Plugin-friendly.** Add a rule or an extractor by subclassing + one decorator. Entry-points let external packages extend `mcpscore` without forking.
+- **Plugin-friendly.** Add a rule or an extractor by subclassing + one decorator. Entry-points let external packages extend `mcpxray` without forking.
 
 ## Dogfood
 

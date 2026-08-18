@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from mcpscore.source import SourceError, is_url, resolve_target
+from mcpxray.source import SourceError, is_url, resolve_target
 
 
 class TestIsUrl:
@@ -93,7 +93,7 @@ class TestResolveUrl:
             resolve_target("file:///no/such/repo/anywhere_xyz", None)
 
     def test_missing_git_raises(self, monkeypatch):
-        monkeypatch.setattr("mcpscore.source.shutil.which", lambda _: None)
+        monkeypatch.setattr("mcpxray.source.shutil.which", lambda _: None)
         with pytest.raises(SourceError, match="git is not installed"):
             resolve_target("https://github.com/owner/repo", None)
 
@@ -101,7 +101,7 @@ class TestResolveUrl:
         def _boom(*_a, **_k):
             raise subprocess.TimeoutExpired(cmd="git", timeout=1)
 
-        monkeypatch.setattr("mcpscore.source.subprocess.run", _boom)
+        monkeypatch.setattr("mcpxray.source.subprocess.run", _boom)
         with pytest.raises(SourceError, match="timed out"):
             resolve_target("https://github.com/owner/repo", None)
 

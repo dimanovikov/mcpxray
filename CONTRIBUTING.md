@@ -1,12 +1,12 @@
-# Contributing to mcpscore
+# Contributing to mcpxray
 
-Thanks for helping make MCP servers safer. This guide covers the dev loop and the two ways most contributors extend `mcpscore`: **adding a rule** and **adding an extractor**.
+Thanks for helping make MCP servers safer. This guide covers the dev loop and the two ways most contributors extend `mcpxray`: **adding a rule** and **adding an extractor**.
 
 ## Development setup
 
 ```bash
-git clone https://github.com/cloudroad-io/mcpscore
-cd mcpscore
+git clone https://github.com/cloudroad-io/mcpxray
+cd mcpxray
 uv sync
 uv run pre-commit install     # optional: ruff on every commit
 uv run pytest                 # 70 tests
@@ -25,7 +25,7 @@ CI runs the same on Python 3.10 / 3.11 / 3.12 / 3.13.
 ## Project layout
 
 ```
-src/mcpscore/
+src/mcpxray/
   ir.py                 # McpServer, Tool, Diagnostic, severities, risk tiers
   extract/              # base.py (API) + python_static.py + manifest.py
   rules/                # base.py (API) + builtin/{descriptions,source,schema,supply}.py
@@ -40,11 +40,11 @@ tests/
 Rules live in `rules/builtin/` (or your own module that you import so the decorator fires). Subclass `Rule`, decorate with `@register_rule`, implement `check`:
 
 ```python
-# src/mcpscore/rules/builtin/my_rule.py
+# src/mcpxray/rules/builtin/my_rule.py
 from collections.abc import Iterable
 
-from mcpscore.ir import SEVERITY_WARNING, Diagnostic, McpServer
-from mcpscore.rules.base import Rule, register_rule
+from mcpxray.ir import SEVERITY_WARNING, Diagnostic, McpServer
+from mcpxray.rules.base import Rule, register_rule
 
 
 @register_rule
@@ -67,7 +67,7 @@ class MCP200NoTools(Rule):
 Then make sure the module is imported so registration runs — add it to `rules/builtin/__init__.py` (builtins) or declare an entry-point (external packages):
 
 ```toml
-[project.entry-points."mcpscore.rules"]
+[project.entry-points."mcpxray.rules"]
 my-rule = "my_pkg.rules:MCP200NoTools"
 ```
 
@@ -81,8 +81,8 @@ Same shape — subclass `Extractor`, decorate with `@register_extractor`:
 # my_pkg/extractors.py
 from pathlib import Path
 
-from mcpscore.extract.base import Extractor, register_extractor
-from mcpscore.ir import McpServer, ServerMeta, Tool
+from mcpxray.extract.base import Extractor, register_extractor
+from mcpxray.ir import McpServer, ServerMeta, Tool
 
 
 @register_extractor
@@ -113,14 +113,14 @@ New rules participate in scoring automatically — each `error` finding deducts 
 
 ## Plugin API stability
 
-`mcpscore` follows [SemVer](https://semver.org/) from **v1.0** on. The plugin surface — what external rule/extractor packages may import and rely on — is **frozen** and is defined by each module's `__all__`:
+`mcpxray` follows [SemVer](https://semver.org/) from **v1.0** on. The plugin surface — what external rule/extractor packages may import and rely on — is **frozen** and is defined by each module's `__all__`:
 
 | Import path | Stable names |
 | --- | --- |
-| `mcpscore.ir` | `McpServer`, `ServerMeta`, `Tool`, `Diagnostic`, `Resource`, `Prompt`; severities (`SEVERITY_ERROR`/`_WARNING`/`_INFO`); risk tiers (`RISK_CRITICAL`/`_HIGH`/`_MEDIUM`/`_LOW`); `SOURCE_STATIC`/`_MANIFEST`/`_RUNTIME`; `ERROR_SCORE_CAP`; `severity_rank` |
-| `mcpscore.rules.base` | `Rule` (its `id`/`severity`/`risk` attributes and `applies`/`check` methods), `register_rule`, `rules`, `run_all` |
-| `mcpscore.extract.base` | `Extractor` (its `language` attribute and `applies_to`/`extract` methods), `register_extractor`, `extractors`, `extractor_for` |
-| `mcpscore` (top level) | `__version__` only |
+| `mcpxray.ir` | `McpServer`, `ServerMeta`, `Tool`, `Diagnostic`, `Resource`, `Prompt`; severities (`SEVERITY_ERROR`/`_WARNING`/`_INFO`); risk tiers (`RISK_CRITICAL`/`_HIGH`/`_MEDIUM`/`_LOW`); `SOURCE_STATIC`/`_MANIFEST`/`_RUNTIME`; `ERROR_SCORE_CAP`; `severity_rank` |
+| `mcpxray.rules.base` | `Rule` (its `id`/`severity`/`risk` attributes and `applies`/`check` methods), `register_rule`, `rules`, `run_all` |
+| `mcpxray.extract.base` | `Extractor` (its `language` attribute and `applies_to`/`extract` methods), `register_extractor`, `extractors`, `extractor_for` |
+| `mcpxray` (top level) | `__version__` only |
 
 Contract:
 
@@ -128,7 +128,7 @@ Contract:
 - **Internal** (not in `__all__`, or prefixed `_`): the registry containers (`_RULES`, `_EXTRACTORS`), `RISK_WEIGHT`, `_SEVERITY_RANK`, the score internals, and every module not listed above (`cli`, `fix`, `score`, `runtime`, `report/*`, `extract/python_static`, `extract/typescript_static`, `extract/manifest`, `rules/builtin/*`). These can change in any release — **don't import them from external packages**.
 - **Experimental** (present in `ir.py`, deliberately *not* in `__all__`): the auto-fix types `Fix` / `TextEdit` and `Diagnostic.fix`. Only MCP108 emits fixes today; the shape may change before it's promoted to the stable API (it'll graduate into `__all__` once a second rule uses it).
 - New optional parameters/fields are additive (not breaking); new rule ids, severities, risk tiers, and `source_mode` values may be added in minor releases.
-- Entry-point group names — `mcpscore.rules` and `mcpscore.extractors` — are part of the stable contract.
+- Entry-point group names — `mcpxray.rules` and `mcpxray.extractors` — are part of the stable contract.
 
 If you're about to change a stable name or signature, treat it as breaking and bump the major version (or add the new form alongside the old and deprecate the old first).
 
@@ -144,12 +144,12 @@ To cut a release:
 
 **One-time PyPI-side setup** (only needed before the *first* release — needs the maintainer's PyPI account, so it's not automated):
 
-- On PyPI, register the `mcpscore` project (the first `v` tag will fail until this exists — PyPI rejects uploads to unknown projects).
-- Under the project → *Publishing*, add a trusted publisher: **PyPI repository** `cloudroad-io/mcpscore`, **workflow filename** `release.yml`, **environment** `pypi`.
+- On PyPI, register the `mcpxray` project (the first `v` tag will fail until this exists — PyPI rejects uploads to unknown projects).
+- Under the project → *Publishing*, add a trusted publisher: **PyPI repository** `cloudroad-io/mcpxray`, **workflow filename** `release.yml`, **environment** `pypi`.
 - In the GitHub repo, create an environment named `pypi` (Settings → Environments) so the workflow's `environment: pypi` resolves.
 
 Optional hardening for later: add required reviewers or a deployment branch rule to the `pypi` environment; set up test-PyPI as a staging publisher first if you want a dry run.
 
 ## License
 
-By contributing you agree your changes are licensed MIT, like the rest of `mcpscore`.
+By contributing you agree your changes are licensed MIT, like the rest of `mcpxray`.

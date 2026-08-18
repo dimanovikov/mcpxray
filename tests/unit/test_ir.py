@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mcpscore.ir import (
+from mcpxray.ir import (
     ERROR_SCORE_CAP,
     RISK_WEIGHT,
     SEVERITY_ERROR,

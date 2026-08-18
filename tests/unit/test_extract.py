@@ -6,14 +6,14 @@ import ast
 import textwrap
 from pathlib import Path
 
-from mcpscore.extract import extractor_for, extractors
-from mcpscore.extract.python_static import (
+from mcpxray.extract import extractor_for, extractors
+from mcpxray.extract.python_static import (
     PythonExtractor,
     _annotation_to_schema,
     _extract_function,
     _iter_python_files,
 )
-from mcpscore.extract.typescript_static import (
+from mcpxray.extract.typescript_static import (
     TypescriptExtractor,
     _iter_typescript_files,
     _zod_to_schema,
@@ -274,7 +274,7 @@ class TestManifestExtractor:
         assert tool.runtime_only is True
 
     def test_wrapped_jsonrpc_response(self):
-        from mcpscore.extract.manifest import _find_tools
+        from mcpxray.extract.manifest import _find_tools
 
         wrapped = {"result": {"tools": [{"name": "x"}]}}
         assert _find_tools(wrapped) == [{"name": "x"}]

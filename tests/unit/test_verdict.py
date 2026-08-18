@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mcpscore.extract import extractor_for
-from mcpscore.ir import (
+from mcpxray.extract import extractor_for
+from mcpxray.ir import (
     SEVERITY_ERROR,
     SEVERITY_WARNING,
     SOURCE_MANIFEST,
@@ -15,9 +15,9 @@ from mcpscore.ir import (
     ServerMeta,
     Tool,
 )
-from mcpscore.rules import run_all
-from mcpscore.score import score
-from mcpscore.verdict import TIER_CAUTION, TIER_DANGER, TIER_OK, TIER_UNKNOWN, verdict
+from mcpxray.rules import run_all
+from mcpxray.score import score
+from mcpxray.verdict import TIER_CAUTION, TIER_DANGER, TIER_OK, TIER_UNKNOWN, verdict
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "servers"
 

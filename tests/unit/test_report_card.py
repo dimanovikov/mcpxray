@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mcpscore.ir import (
+from mcpxray.ir import (
     SEVERITY_ERROR,
     SEVERITY_WARNING,
     SOURCE_STATIC,
@@ -11,11 +11,11 @@ from mcpscore.ir import (
     ServerMeta,
     Tool,
 )
-from mcpscore.report import SUPPORTED_FORMATS, render
-from mcpscore.report import card as card_fmt
-from mcpscore.report.card import render_verdict
-from mcpscore.score import score
-from mcpscore.verdict import verdict
+from mcpxray.report import SUPPORTED_FORMATS, render
+from mcpxray.report import card as card_fmt
+from mcpxray.report.card import render_verdict
+from mcpxray.score import score
+from mcpxray.verdict import verdict
 
 
 def _doc(*diags: Diagnostic, tools: int = 1, source_mode: str = SOURCE_STATIC) -> McpServer:

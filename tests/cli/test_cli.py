@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from mcpscore import __version__
-from mcpscore.cli import app
+from mcpxray import __version__
+from mcpxray.cli import app
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "servers"
 

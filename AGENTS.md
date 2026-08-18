@@ -1,22 +1,22 @@
-# mcpscore
+# mcpxray
 
-**Static linter + 0–100 scorecard for MCP servers.** `mcpscore` scans an MCP server's source (or a captured `tools/list` manifest) and flags tool poisoning, leaked secrets, dangerous capabilities and weak schemas — locally, deterministically, in CI. One score, one badge.
+**Static linter + 0–100 scorecard for MCP servers.** `mcpxray` scans an MCP server's source (or a captured `tools/list` manifest) and flags tool poisoning, leaked secrets, dangerous capabilities and weak schemas — locally, deterministically, in CI. One score, one badge.
 
 ## Install
 
 ```bash
-uv tool install mcpscore
-# or: pip install mcpscore
+uv tool install mcpxray
+# or: pip install mcpxray
 ```
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `mcpscore scan [PATH] [--manifest FILE] [-f plain\|json\|github\|sarif] [--check]` | Lint a server; `--check` exits 1 on any ERROR (CI gate). |
-| `mcpscore score [PATH] [--manifest FILE] [--fail-under N]` | Print the 0–100 score; exit 1 below `--fail-under`. |
-| `mcpscore badge [PATH \| --score N] [-o FILE]` | Render an SVG score badge. |
-| `mcpscore version` | Print the version. |
+| `mcpxray scan [PATH] [--manifest FILE] [-f plain\|json\|github\|sarif] [--check]` | Lint a server; `--check` exits 1 on any ERROR (CI gate). |
+| `mcpxray score [PATH] [--manifest FILE] [--fail-under N]` | Print the 0–100 score; exit 1 below `--fail-under`. |
+| `mcpxray badge [PATH \| --score N] [-o FILE]` | Render an SVG score badge. |
+| `mcpxray version` | Print the version. |
 
 ## How it works
 
@@ -24,7 +24,7 @@ uv tool install mcpscore
 - **IR = `McpServer`.** Every extractor emits one, every rule consumes one. `meta`, `tools[]` (`name`/`description`/`input_schema`/`source_path`/`line`/`runtime_only`), `resources[]`, `prompts[]`, `dependencies`, `sources: dict[path, text]`, `lockfiles`, `diagnostics[]`.
 - **Rules → Diagnostics.** Each rule sees the IR and yields `Diagnostic{rule_id, severity, message, tool, file, line, col}`. `run_all` sorts errors-first and mirrors onto `doc.diagnostics`.
 - **Score.** Findings collapse to 0–100: `error` −20, `warning` −6, `info` −1, clamped `[0,100]`. **Any `error` caps the score at 60** so a leaked secret or poisoned tool can't be diluted into a green grade.
-- **Plugins.** Subclass `Rule` or `Extractor`, decorate with `@register_rule` / `@register_extractor`, and (for external packages) declare an entry-point in `mcpscore.rules` / `mcpscore.extractors`. See `CONTRIBUTING.md`.
+- **Plugins.** Subclass `Rule` or `Extractor`, decorate with `@register_rule` / `@register_extractor`, and (for external packages) declare an entry-point in `mcpxray.rules` / `mcpxray.extractors`. See `CONTRIBUTING.md`.
 
 ## Rules (v0.1)
 
@@ -47,14 +47,14 @@ uv sync
 uv run ruff check
 uv run ruff format --check
 uv run pytest                       # 70 tests, ~94% coverage
-uv run mcpscore scan tests/fixtures/servers/clean      # dogfood: 100/100, exit 0
-uv run mcpscore scan tests/fixtures/servers/leaky --check   # dogfood: errors, exit 1
+uv run mcpxray scan tests/fixtures/servers/clean      # dogfood: 100/100, exit 0
+uv run mcpxray scan tests/fixtures/servers/leaky --check   # dogfood: errors, exit 1
 ```
 
 ## Layout
 
 ```
-src/mcpscore/   cli, ir, score, badge
+src/mcpxray/   cli, ir, score, badge
                  extract/{base,python_static,manifest}  rules/{base,builtin/*}
                  report/{plain,json,github,sarif}
 tests/          unit (ir, extract, rules, score, report) + cli e2e + fixtures/servers/

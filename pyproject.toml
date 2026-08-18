@@ -1,5 +1,5 @@
 [project]
-name = "mcpscore"
+name = "mcpxray"
 version = "0.1.0"
 description = "Static linter + 0-100 scorecard for MCP servers. Catches tool poisoning, secret leaks, schema drift and more — locally, deterministically, in CI."
 readme = "README.md"
@@ -14,12 +14,12 @@ dependencies = [
 ]
 
 [project.scripts]
-mcpscore = "mcpscore.cli:app"
+mcpxray = "mcpxray.cli:app"
 
 # External plugins self-register via these entry-point groups (built-ins load
-# directly through decorator-based registries — see src/mcpscore/{extract,rules}).
-[project.entry-points."mcpscore.extractors"]
-[project.entry-points."mcpscore.rules"]
+# directly through decorator-based registries — see src/mcpxray/{extract,rules}).
+[project.entry-points."mcpxray.extractors"]
+[project.entry-points."mcpxray.rules"]
 
 [build-system]
 requires = ["uv_build>=0.11.28,<0.12.0"]
@@ -42,7 +42,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 # typer/click use call expressions as default arguments by design (B008).
 [tool.ruff.lint.per-file-ignores]
-"src/mcpscore/cli.py" = ["B008"]
+"src/mcpxray/cli.py" = ["B008"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from mcpscore.extract.manifest import from_tools
-from mcpscore.ir import SOURCE_RUNTIME
-from mcpscore.rules import run_all
-from mcpscore.runtime import (
+from mcpxray.extract.manifest import from_tools
+from mcpxray.ir import SOURCE_RUNTIME
+from mcpxray.rules import run_all
+from mcpxray.runtime import (
     CaptureError,
     _initialize_msg,
     _initialized_notification,
@@ -36,7 +36,7 @@ class TestMessageBuilders:
         assert msg["method"] == "initialize"
         params = msg["params"]
         assert params["protocolVersion"]
-        assert params["clientInfo"]["name"] == "mcpscore"
+        assert params["clientInfo"]["name"] == "mcpxray"
         assert params["capabilities"] == {}
 
     def test_initialized_notification_has_no_id(self):

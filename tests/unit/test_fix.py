@@ -1,11 +1,11 @@
-"""Unit tests for the auto-fix engine (``mcpscore.fix``) and MCP108's ``Fix``."""
+"""Unit tests for the auto-fix engine (``mcpxray.fix``) and MCP108's ``Fix``."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from mcpscore.extract import extractor_for
-from mcpscore.fix import (
+from mcpxray.extract import extractor_for
+from mcpxray.fix import (
     ApplySummary,
     _apply_edits,
     apply_fixes,
@@ -15,8 +15,8 @@ from mcpscore.fix import (
     plan_fixes,
     render_diff,
 )
-from mcpscore.ir import Diagnostic, Fix, McpServer, ServerMeta, TextEdit
-from mcpscore.rules import run_all
+from mcpxray.ir import Diagnostic, Fix, McpServer, ServerMeta, TextEdit
+from mcpxray.rules import run_all
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "servers"
 
@@ -165,7 +165,7 @@ class TestRenderDiffAndApply:
         doc = _doc_with_fix(str(f))
         doc.diagnostics[0].fix.edits = [TextEdit(">=2.30.0", "==2.30.0")]
         apply_fixes(plan_fixes(doc))
-        assert not (tmp_path / "pyproject.toml.mcpscore-tmp").exists()
+        assert not (tmp_path / "pyproject.toml.mcpxray-tmp").exists()
 
     def test_apply_records_unreadable_file(self, tmp_path):
         doc = _doc_with_fix(str(tmp_path / "missing.toml"))

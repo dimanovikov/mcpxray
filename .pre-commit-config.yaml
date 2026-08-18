@@ -1,4 +1,4 @@
-# Pre-commit hooks for mcpscore.
+# Pre-commit hooks for mcpxray.
 # Uses the project's own ruff via `uv run` (single source of truth — no version
 # drift between local dev, CI, and this hook).
 repos:
