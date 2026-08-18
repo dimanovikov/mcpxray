@@ -13,9 +13,11 @@
 ## Install
 
 ```bash
-uv tool install mcpxray
-# or: pip install mcpxray
+uv tool install mcpxray-cli
+# or: pip install mcpxray-cli
 ```
+
+The PyPI distribution is `mcpxray-cli` (the name `mcpxray` is blocked on PyPI by an unrelated project); the command it installs is still `mcpxray`.
 
 Requires Python ≥ 3.10.
 
@@ -139,7 +141,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv tool install mcpxray
+      - run: uv tool install mcpxray-cli
       # GitHub annotations + SARIF-friendly; fails on any ERROR
       - run: mcpxray scan ./src --check -f github
       # Optional: fail below a score bar
@@ -159,7 +161,7 @@ repos:
         args: ["./src"]  # path to your server source
 ```
 
-The hook runs `mcpxray scan --check <path>` and fails the commit on any ERROR (tool poisoning, leaked secrets, RCE). Requires `mcpxray` on PyPI; if you install it locally instead (`uv tool install mcpxray`), set `language: system` on the hook.
+The hook runs `mcpxray scan --check <path>` and fails the commit on any ERROR (tool poisoning, leaked secrets, RCE). Requires the `mcpxray-cli` distribution on PyPI; if you install it locally instead (`uv tool install mcpxray-cli`), set `language: system` on the hook.
 
 ## How it works
 

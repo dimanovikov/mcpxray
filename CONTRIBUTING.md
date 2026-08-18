@@ -144,7 +144,7 @@ To cut a release:
 
 **One-time PyPI-side setup** (only needed before the *first* release — needs the maintainer's PyPI account, so it's not automated):
 
-- On PyPI, register the `mcpxray` project (the first `v` tag will fail until this exists — PyPI rejects uploads to unknown projects).
+- On PyPI, register the `mcpxray-cli` project (the first `v` tag will fail until this exists — PyPI rejects uploads to unknown projects). Note the dist name is `mcpxray-cli`, not `mcpxray` — PyPI blocks `mcpxray` as confusable with the unrelated `mcp-xray` project, while the CLI command and import package remain `mcpxray`.
 - Under the project → *Publishing*, add a trusted publisher: **PyPI repository** `cloudroad-io/mcpxray`, **workflow filename** `release.yml`, **environment** `pypi`.
 - In the GitHub repo, create an environment named `pypi` (Settings → Environments) so the workflow's `environment: pypi` resolves.
 

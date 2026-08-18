@@ -8,13 +8,13 @@
 #         args: ["./src"]    # path to the server source to scan
 #
 # The hook runs `mcpxray scan --check <path>` and fails the commit on any
-# ERROR finding (tool poisoning, leaked secrets, RCE). Requires `mcpxray` on
-# PyPI; if installed locally instead (`uv tool install mcpxray`), set
-# `language: system` in the hook entry.
+# ERROR finding (tool poisoning, leaked secrets, RCE). Requires the
+# `mcpxray-cli` distribution on PyPI; if installed locally instead
+# (`uv tool install mcpxray-cli`), set `language: system` in the hook entry.
 - id: mcpxray
   name: mcpxray
   description: Lint an MCP server against the OWASP MCP Top-10 (MCP101-109); fails the commit on any ERROR finding.
   entry: mcpxray scan --check
   language: python
   pass_filenames: false
-  additional_dependencies: ["mcpxray"]
+  additional_dependencies: ["mcpxray-cli"]

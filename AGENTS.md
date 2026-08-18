@@ -5,9 +5,11 @@
 ## Install
 
 ```bash
-uv tool install mcpxray
-# or: pip install mcpxray
+uv tool install mcpxray-cli
+# or: pip install mcpxray-cli
 ```
+
+The dist on PyPI is `mcpxray-cli`; the installed command is `mcpxray`.
 
 ## Commands
 
