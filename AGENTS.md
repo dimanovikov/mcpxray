@@ -28,7 +28,7 @@ The dist on PyPI is `mcpxray-cli`; the installed command is `mcpxray`.
 - **Score.** Findings collapse to 0–100: `error` −20, `warning` −6, `info` −1, clamped `[0,100]`. **Any `error` caps the score at 60** so a leaked secret or poisoned tool can't be diluted into a green grade.
 - **Plugins.** Subclass `Rule` or `Extractor`, decorate with `@register_rule` / `@register_extractor`, and (for external packages) declare an entry-point in `mcpxray.rules` / `mcpxray.extractors`. See `CONTRIBUTING.md`.
 
-## Rules (v0.1)
+## Rules
 
 | ID | Scope | Rule |
 | --- | --- | --- |
@@ -36,11 +36,13 @@ The dist on PyPI is `mcpxray-cli`; the installed command is `mcpxray`.
 | MCP102 | source text | secrets & API keys (regex) |
 | MCP103 | source text | dangerous capabilities (`os.system`, `eval`, `exec`, `pickle.loads`, `shell=True`) |
 | MCP104 | tool schema | weak schema (no `required`, empty `{}` property) |
+| MCP105 | tool schema vs source | schema/implementation drift |
 | MCP106 | tool schema | JSON-Schema incompatibilities (`$ref`/`oneOf`/`anyOf`/`allOf`, missing `type`) |
 | MCP107 | tool `description` | missing or oversized (>4096 chars) |
-| MCP108 | dependencies | unpinned deps with no lockfile |
+| MCP108 | dependencies | unpinned deps with no lockfile (`--fix`/`--diff` pin to floor) |
+| MCP109 | transport/config | unauthenticated transport / missing TLS |
 
-MCP105 (schema/impl drift) and MCP109 (transport auth/TLS) are deferred to v0.2 (need runtime/config input the static core lacks).
+MCP105 (schema/impl drift) and MCP109 (transport auth/TLS) rely on the runtime-capture and config inputs added in v0.2.
 
 ## Build & test
 

@@ -2,7 +2,7 @@
 # every commit. Add to your repo's `.pre-commit-config.yaml`:
 #
 #   - repo: https://github.com/cloudroad-io/mcpxray
-#     rev: v0.2.0            # pin to a release tag
+#     rev: v1.0.0            # pin to a release tag
 #     hooks:
 #       - id: mcpxray
 #         args: ["./src"]    # path to the server source to scan

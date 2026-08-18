@@ -6,9 +6,7 @@
 
 ## Status
 
-✅ **v0.1.0** — Python static extractor + manifest extractor, rules MCP101/102/103/104/106/107/108, `scan`/`score`/`badge`/`version`, plain/json/github/sarif reports, 0–100 score with error cap, SVG badge, plugin API. 73 tests, 94% coverage.
-
-🚧 **dev (→ v0.2):** friendly `check` command (traffic-light 🟢/🟡/🔴/⚪ verdict + recommendation, clones a GitHub URL), `card` report format; **scope URL clones to the server entry point**, **TypeScript static extraction**, rules **MCP105** (schema/impl drift) & **MCP109** (transport auth), and **opt-in runtime `tools/list` capture** (`check --runtime --command`). 196 tests.
+✅ **v1.0.0** — stable public API. Python + TypeScript static extractors, manifest extractor, opt-in runtime `tools/list` capture, rules **MCP101–109** (full OWASP MCP Top-10 mapping), `check`/`scan`/`score`/`badge`/`version`, plain/json/github/sarif/card reports, 0–100 score with error cap, SVG badge, `--fix`/`--diff` for MCP108, pre-commit hook, frozen plugin API (`__all__` + SemVer policy), tokenless PyPI trusted publishing. 224 tests.
 
 ## Install
 
@@ -69,7 +67,7 @@ mcpxray badge path/to/my-mcp-server -o docs/score.svg
 
 The numeric score (0–100, shown as a secondary detail) still follows the error-cap rule below: any error caps it at 60. `--fail-under N` adds a CI gate that is independent of the verdict (it can turn a 🟡/🟢 into an exit-1 without changing the displayed verdict).
 
-> **Languages:** v0.2 checks **Python and TypeScript** statically (FastMCP `@mcp.tool` and the TS SDK's `server.tool(...)` / `registerTool(...)` / low-level `ListToolsRequestSchema` shapes). Servers in other languages — or tools built dynamically at runtime — still return ⚪ UNKNOWN; capture `tools/list` (`mcpxray check --manifest dump.json`), or spawn the server and let mcpxray capture it live (`mcpxray check --runtime --command '<launch>'`).
+> **Languages:** mcpxray checks **Python and TypeScript** statically (FastMCP `@mcp.tool` and the TS SDK's `server.tool(...)` / `registerTool(...)` / low-level `ListToolsRequestSchema` shapes). Servers in other languages — or tools built dynamically at runtime — still return ⚪ UNKNOWN; capture `tools/list` (`mcpxray check --manifest dump.json`), or spawn the server and let mcpxray capture it live (`mcpxray check --runtime --command '<launch>'`).
 
 ## Runtime capture (`--runtime --command`)
 
@@ -155,7 +153,7 @@ Lint on every commit from any MCP-server repo. Add `mcpxray` to your `.pre-commi
 ```yaml
 repos:
   - repo: https://github.com/cloudroad-io/mcpxray
-    rev: v0.2.0          # pin to a release tag
+    rev: v1.0.0          # pin to a release tag
     hooks:
       - id: mcpxray
         args: ["./src"]  # path to your server source
@@ -192,8 +190,9 @@ Scanned against the official [`modelcontextprotocol/python-sdk`](https://github.
 
 ## Roadmap
 
-- **v0.2** — scope URL clones to the server entry point (no whole-repo false positives from `tests/`), TypeScript static extractor (the big win — makes `check` work for the majority of servers), rules MCP105/109, opt-in runtime `tools/list` capture (`--runtime --command`). ✅ implemented; full plan: [`docs/v0.2-plan.md`](docs/v0.2-plan.md).
-- **v1.0** — freeze the plugin API (semver), `--fix` for trivial rules, PyPI trusted publishing, hosted badge API + leaderboard, registry integrations (Glama/Smithery). ✅ done in dev: pre-commit hook (`.pre-commit-hooks.yaml`), GitHub Actions CI, frozen plugin API (`__all__` + SemVer policy, see [CONTRIBUTING.md](CONTRIBUTING.md)), `--fix`/`--diff` (pin unpinned deps), tokenless PyPI trusted-publishing workflow (`.github/workflows/release.yml`; pending one-time PyPI project registration). Remaining (need external accounts/services): hosted badge API + leaderboard (hosting), registry integrations (Glama/Smithery API keys).
+- **v0.2** — scope URL clones to the server entry point, TypeScript static extractor, rules MCP105/109, opt-in runtime `tools/list` capture (`--runtime --command`). ✅ shipped.
+- **v1.0** — frozen plugin API (SemVer), `--fix`/`--diff`, pre-commit hook, GitHub Actions CI, PyPI trusted publishing. ✅ shipped (v1.0.0).
+- **Later** (needs external services/accounts): hosted badge API + leaderboard (hosting), registry integrations (Glama/Smithery API keys). Full history: [`docs/v0.2-plan.md`](docs/v0.2-plan.md).
 
 ## License
 
