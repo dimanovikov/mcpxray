@@ -65,7 +65,7 @@ def render(
                     "driver": {
                         "name": "mcpxray",
                         "version": __version__,
-                        "informationUri": "https://github.com/cloudroad-io/mcpxray",
+                        "informationUri": "https://github.com/dimanovikov/mcpxray",
                         "rules": rules,
                     }
                 },

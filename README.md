@@ -152,7 +152,7 @@ Lint on every commit from any MCP-server repo. Add `mcpxray` to your `.pre-commi
 
 ```yaml
 repos:
-  - repo: https://github.com/cloudroad-io/mcpxray
+  - repo: https://github.com/dimanovikov/mcpxray
     rev: v1.0.0          # pin to a release tag
     hooks:
       - id: mcpxray

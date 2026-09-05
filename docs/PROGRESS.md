@@ -10,7 +10,7 @@ Living log of milestones and current state. Newest first.
 - **PyPI dist renamed to `mcpxray-cli`** (`4cacdba`) — PyPI blocks the name `mcpxray` as confusable with the existing [`mcp-xray`](https://pypi.org/project/mcp-xray/) package: PyPI's name check strips `. _ -` and maps `i/l → 1`, `o → 0`, so every spelling of `mcpxray` collides exactly. Verified against PyPI's `ultranormalize_name` source and a sweep of all ~872k PyPI names. The **CLI command, import package, entry points and repo name all stay `mcpxray`** — only the distribution name changed. PEP 541 dispute was ruled out (the blocker is a live project, exact collision).
 - **v1.0.0** (`74fe33a`, tag `v1.0.0`) — version bump, README/AGENTS Status + Rules tables brought in line with what actually ships (all rules MCP101–109, 224 tests), and a real bug fixed: `__version__` still read package metadata under the old dist name, so `mcpxray version` printed `0.0.0` from the installed wheel.
 - **Published to PyPI**: <https://pypi.org/project/mcpxray-cli/> — wheel + sdist + Sigstore attestations, via trusted publishing (no token in the repo). First attempt failed with `invalid-publisher` because the pending-publisher form on PyPI hadn't actually been saved; after re-submitting it, `gh run rerun --failed` went green.
-- **Repo flipped public**: <https://github.com/cloudroad-io/mcpxray> (verified anonymously reachable).
+- **Repo flipped public**: <https://github.com/dimanovikov/mcpxray> (verified anonymously reachable).
 
 **State:** 224 tests green · ruff clean · CI green (py3.10–3.12 × ubuntu/windows) · install verified from real PyPI in a clean venv (`pip install mcpxray-cli` → `mcpxray version` → `1.0.0`; `mcpxray check` on the clean fixture → 100/100, exit 0).
 
@@ -18,7 +18,7 @@ Living log of milestones and current state. Newest first.
 
 - The PyPI distribution is `mcpxray-cli`; the command, package and repo are `mcpxray`. `uvx mcpxray-cli …` and `pip install mcpxray-cli` both work.
 - `pyproject.toml` must keep `module-name = "mcpxray"` under `[tool.uv.build-backend]` — `uv_build` derives `mcpxray_cli` from the dist name otherwise, and the build breaks.
-- Trusted-publisher record on PyPI: owner `cloudroad-io`, repo `mcpxray`, workflow `release.yml`, environment `pypi`. The `pypi` GitHub environment exists (created via API, no protection rules yet).
+- Trusted-publisher record on PyPI: owner `dimanovikov`, repo `mcpxray`, workflow `release.yml`, environment `pypi`. The `pypi` GitHub environment exists (created via API, no protection rules yet).
 
 **Next (pick up here):**
 

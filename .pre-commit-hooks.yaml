@@ -1,7 +1,7 @@
 # Declares `mcpxray` as a pre-commit hook so any MCP-server repo can run it on
 # every commit. Add to your repo's `.pre-commit-config.yaml`:
 #
-#   - repo: https://github.com/cloudroad-io/mcpxray
+#   - repo: https://github.com/dimanovikov/mcpxray
 #     rev: v1.0.0            # pin to a release tag
 #     hooks:
 #       - id: mcpxray

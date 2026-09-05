@@ -5,7 +5,7 @@ Thanks for helping make MCP servers safer. This guide covers the dev loop and th
 ## Development setup
 
 ```bash
-git clone https://github.com/cloudroad-io/mcpxray
+git clone https://github.com/dimanovikov/mcpxray
 cd mcpxray
 uv sync
 uv run pre-commit install     # optional: ruff on every commit
@@ -145,7 +145,7 @@ To cut a release:
 **One-time PyPI-side setup** (only needed before the *first* release — needs the maintainer's PyPI account, so it's not automated):
 
 - On PyPI, register the `mcpxray-cli` project (the first `v` tag will fail until this exists — PyPI rejects uploads to unknown projects). Note the dist name is `mcpxray-cli`, not `mcpxray` — PyPI blocks `mcpxray` as confusable with the unrelated `mcp-xray` project, while the CLI command and import package remain `mcpxray`.
-- Under the project → *Publishing*, add a trusted publisher: **PyPI repository** `cloudroad-io/mcpxray`, **workflow filename** `release.yml`, **environment** `pypi`.
+- Under the project → *Publishing*, add a trusted publisher: **PyPI repository** `dimanovikov/mcpxray`, **workflow filename** `release.yml`, **environment** `pypi`.
 - In the GitHub repo, create an environment named `pypi` (Settings → Environments) so the workflow's `environment: pypi` resolves.
 
 Optional hardening for later: add required reviewers or a deployment branch rule to the `pypi` environment; set up test-PyPI as a staging publisher first if you want a dry run.
