@@ -376,14 +376,56 @@ def _tool_name(arg: str) -> str | None:
     return None
 
 
+# ``const name = "echo"`` / ``const config = { … }`` at module level. Servers
+# that keep one tool per file (the shape `everything` uses) hand these to
+# registerTool instead of literals, so without resolving them every tool in
+# such a file is invisible.
+_CONST_STR_RE = re.compile(
+    r"""(?m)^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*"""
+    r"""(?::[^=\n]*)?=\s*((['"`])(?:\\.|(?!\3)[^\\\n])*\3)\s*;?"""
+)
+_CONST_OBJ_RE = re.compile(
+    r"""(?m)^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]*)?=\s*\{"""
+)
+
+
+def _module_consts(text: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Module-level string and object-literal bindings, by name."""
+    strings: dict[str, str] = {}
+    for m in _CONST_STR_RE.finditer(text):
+        literal = _maybe_string(m.group(2))
+        if literal is not None:
+            strings[m.group(1)] = literal
+
+    objects: dict[str, str] = {}
+    for m in _CONST_OBJ_RE.finditer(text):
+        open_idx = m.end() - 1  # the '{'
+        close = _match_bracket(text, open_idx, "{", "}")
+        if close != -1:
+            objects[m.group(1)] = text[open_idx : close + 1]
+    return strings, objects
+
+
+def _resolve(arg: str, strings: dict[str, str], objects: dict[str, str]) -> str:
+    """Substitute a bare identifier with the literal it was bound to."""
+    a = arg.strip()
+    if re.fullmatch(r"[A-Za-z_$][\w$]*", a):
+        if a in strings:
+            return f'"{strings[a]}"'
+        if a in objects:
+            return objects[a]
+    return arg
+
+
 def _extract_highlevel(text: str, posix: str, server: McpServer) -> None:
     """``server.tool(...)`` / ``server.registerTool(...)`` registrations."""
+    strings, objects = _module_consts(text)
     for m in _HL_RE.finditer(text):
         open_idx = m.end() - 1  # the '(' (regex ends right after it)
         close = _match_bracket(text, open_idx, "(", ")")
         if close == -1:
             continue
-        args = _split_top_level(text[open_idx + 1 : close])
+        args = [_resolve(a, strings, objects) for a in _split_top_level(text[open_idx + 1 : close])]
         if not args:
             continue
         name = _tool_name(args[0])

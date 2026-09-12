@@ -40,3 +40,18 @@ def test_a_model_built_schema_is_marked_unresolved(tmp_path: Path):
     )
     doc = PythonExtractor().extract(tmp_path)
     assert all(t.schema_unresolved for t in doc.tools)
+
+
+def test_registertool_with_module_consts_extracts(tmp_path: Path):
+    """`everything` passes consts to registerTool instead of literals, so every
+    one of its tools was invisible. Zero tools is now reported honestly rather
+    than as a grade, but invisible is still invisible."""
+    from mcpxray.extract.typescript_static import TypescriptExtractor
+
+    (tmp_path / "package.json").write_text('{"name": "demo", "version": "1.0.0"}', encoding="utf-8")
+    (tmp_path / "echo.ts").write_text(
+        (CORPUS / "registertool_const_server.ts").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    doc = TypescriptExtractor().extract(tmp_path)
+    assert [t.name for t in doc.tools] == ["echo"]
+    assert doc.tools[0].description == "Echoes back the input string"
