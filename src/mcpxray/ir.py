@@ -125,6 +125,10 @@ class Tool:
     source_path: str | None = None  # file the tool was declared in
     line: int | None = None  # 1-indexed line of the declaration
     runtime_only: bool = False  # True when learned from a manifest, not source
+    # True when a schema was declared but built at runtime (e.g.
+    # ``Model.model_json_schema()``), so it could not be read statically.
+    # Rules must not treat this as a missing or weak schema.
+    schema_unresolved: bool = False
     # Destructured handler parameter names, for MCP105 (schema/impl drift).
     # ``None`` = undeterminable (bare ``args`` identifier, Python, or a manifest
     # tool with no source handler) → the rule can't compare and skips.
@@ -176,6 +180,18 @@ class McpServer:
     diagnostics: list[Diagnostic] = field(default_factory=list)
     source_mode: str = SOURCE_STATIC  # how the IR was obtained
     dep_file: str | None = None  # pyproject.toml/package.json that supplied deps (fix provenance)
+
+    @property
+    def is_unanalysed(self) -> bool:
+        """True when no MCP surface was found at all.
+
+        A server may legitimately expose only resources or prompts, so an empty
+        tool list is not on its own a problem. Nothing at all means the
+        extractor did not understand the input, and a grade awarded to input
+        that was never analysed is worse than no grade: it reads as a clean
+        bill of health for a file nobody checked.
+        """
+        return not (self.tools or self.resources or self.prompts)
 
     @property
     def errors(self) -> list[Diagnostic]:

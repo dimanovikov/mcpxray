@@ -6,7 +6,7 @@
 
 ## Status
 
-✅ **v1.0.0** — stable public API. Python + TypeScript static extractors, manifest extractor, opt-in runtime `tools/list` capture, rules **MCP101–109** (full OWASP MCP Top-10 mapping), `check`/`scan`/`score`/`badge`/`version`, plain/json/github/sarif/card reports, 0–100 score with error cap, SVG badge, `--fix`/`--diff` for MCP108, pre-commit hook, frozen plugin API (`__all__` + SemVer policy), tokenless PyPI trusted publishing. 224 tests.
+✅ **v1.0.0** — stable public API. Python + TypeScript static extractors, manifest extractor, opt-in runtime `tools/list` capture, rules **MCP101–109** (full OWASP MCP Top-10 mapping), `check`/`scan`/`score`/`badge`/`version`, plain/json/github/sarif/card reports, 0–100 score with error cap, SVG badge, `--fix`/`--diff` for MCP108, pre-commit hook, frozen plugin API (`__all__` + SemVer policy), tokenless PyPI trusted publishing. 254 tests.
 
 ## Install
 
@@ -96,6 +96,19 @@ What it does **not** touch:
 - **No floor to pin** (`*`, `latest`, a bare `flask`, `>=2` with no patch) → skipped, left for you to resolve against a registry. mcpxray never invents a version.
 - **Specs with extras/env markers** (`pkg[extra]>=1.2.3`, `pkg>=1.2.3 ; python_version>'3'`) → skipped (rewriting them textually is unsafe).
 - **Every other rule** (MCP101–107, MCP109) → not auto-fixable; these need human judgment (a leaked secret isn't "fixed" by deleting it).
+
+### When there is nothing to score
+
+If no tools, resources or prompts can be found in a source tree, `mcpxray` reports **`not analysed`** and withholds both the score and the grade; `score` exits `2`. A grade awarded to source the scanner never read is indistinguishable from a genuine pass, which is the one result a security tool must never produce. `check` has always said 🔘 UNKNOWN here; `scan` and `score` now agree with it.
+
+This usually means the server declares its tools in a way the extractor does not recognise yet. Capture them instead:
+
+```bash
+mcpxray check --manifest tools-list.json
+mcpxray check --runtime --command 'python -m my_server'
+```
+
+`--runtime` starts the server being examined, on your machine, with your privileges, and says so before it does.
 
 `--fix`/`--diff` are **static-source-only** — they rewrite files in place, so they reject `--manifest`, `--runtime`, and URL targets (point them at a local path). Every edit is a literal, uniquely-anchored replacement, so an ambiguous match is skipped rather than applied wrongly. Re-run `scan` after `--fix` to confirm the score improved.
 

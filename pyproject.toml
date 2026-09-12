@@ -57,6 +57,10 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 # typer/click use call expressions as default arguments by design (B008).
 [tool.ruff.lint.per-file-ignores]
 "src/mcpxray/cli.py" = ["B008"]
+# Corpus fixtures are excerpts of published servers, kept verbatim so they keep
+# describing how those servers are really written. They reference names defined
+# elsewhere in the originals and are never imported (F821).
+"tests/fixtures/corpus/*.py" = ["F821"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

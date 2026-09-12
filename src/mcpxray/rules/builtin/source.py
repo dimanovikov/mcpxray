@@ -18,7 +18,7 @@ _SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b"), "GitHub token"),
     (re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b"), "GitLab token"),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), "Slack token"),
-    (re.compile(r"\baiza[0-9A-Za-z_-]{35,}\b"), "Google API key"),
+    (re.compile(r"\bAIza[0-9A-Za-z_-]{35,}\b"), "Google API key"),
     (
         re.compile(
             r"(?i)(?:api[_-]?key|secret|token|password|passwd)\s*[=:]\s*"
@@ -43,6 +43,27 @@ _RCE_PATTERNS: list[tuple[re.Pattern, str]] = [
             re.S,
         ),
         "subprocess with shell=True (shell injection risk)",
+    ),
+    # JavaScript / TypeScript. Most published MCP servers are written in
+    # TypeScript, so a Python-only list left the rule blind where it is needed
+    # most. Only unambiguous spellings are listed: a bare ``exec(`` would match
+    # ``/re/.exec(s)``, which is ordinary code, and a rule that cries wolf gets
+    # switched off.
+    (re.compile(r"\bexecSync\s*\("), "execSync (arbitrary shell command)"),
+    (re.compile(r"\bexecFileSync\s*\("), "execFileSync (arbitrary command execution)"),
+    (re.compile(r"\bspawnSync\s*\("), "spawnSync (arbitrary command execution)"),
+    (
+        re.compile(r"""require\s*\(\s*['"]child_process['"]\s*\)"""),
+        "child_process (command execution capability)",
+    ),
+    (
+        re.compile(r"""\bfrom\s+['"](?:node:)?child_process['"]"""),
+        "child_process (command execution capability)",
+    ),
+    (re.compile(r"\bnew\s+Function\s*\("), "new Function (arbitrary code execution)"),
+    (
+        re.compile(r"\bvm\.runIn(?:New|This)Context\s*\("),
+        "vm.runInContext (arbitrary code execution)",
     ),
 ]
 

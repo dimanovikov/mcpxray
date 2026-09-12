@@ -2,7 +2,7 @@
 
 Parses MCP server source with :mod:`ast` (no import, no execution) and builds a
 :class:`~mcpxray.ir.McpServer`. Recognises the FastMCP / ``server.tool()``
-decorator family::
+decorator family and the low-level ``@server.list_tools()`` handler::
 
     mcp = FastMCP("...")
 
@@ -55,12 +55,26 @@ _SKIP_DIRS = {
     "test_data",
     "testdata",
     "testdata_dir",
+    # JavaScript/TypeScript conventions — the Python names above do not cover
+    # them, which let `__tests__` through and turned a server's own test suite
+    # into findings against the server.
+    "__tests__",
+    "__mocks__",
+    "spec",
+    "e2e",
+    "coverage",
 }
 
 
 def _is_test_dir(name: str) -> bool:
     """``test_foo`` / ``foo_test`` style dirs (a set can't express prefixes)."""
     return name.startswith("test_") or name.endswith("_test")
+
+
+def _is_test_file(name: str) -> bool:
+    """``thing.test.ts`` / ``thing.spec.js`` — JS keeps tests beside the source."""
+    stem = name.rsplit(".", 1)[0]
+    return stem.endswith((".test", ".spec")) or stem.startswith("test_")
 
 
 _PRIMITIVES = {"str": "string", "int": "integer", "float": "number", "bool": "boolean"}
@@ -210,6 +224,121 @@ def _extract_function(
     )
 
 
+# --- low-level server: @server.list_tools() returning [Tool(...)] ------------
+
+
+def _decorator_is_list_tools(node: ast.AST) -> bool:
+    """``@server.list_tools()`` — the low-level SDK's tool declaration hook."""
+    target = node.func if isinstance(node, ast.Call) else node
+    return isinstance(target, ast.Attribute) and target.attr == "list_tools"
+
+
+def _literal(node: ast.AST | None):
+    """Best-effort literal value, or ``None`` when the expression is computed."""
+    if node is None:
+        return None
+    try:
+        return ast.literal_eval(node)
+    except (ValueError, SyntaxError):
+        return None
+
+
+def _enum_values(tree: ast.Module) -> dict[str, str]:
+    """Map ``ClassName.MEMBER`` to its string value for enums defined in this file.
+
+    The official ``git`` and ``time`` servers name tools through an enum rather
+    than a literal, so without this every tool they declare is dropped.
+    """
+    values: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for stmt in node.body:
+            if not isinstance(stmt, ast.Assign) or len(stmt.targets) != 1:
+                continue
+            target = stmt.targets[0]
+            if (
+                isinstance(target, ast.Name)
+                and isinstance(stmt.value, ast.Constant)
+                and isinstance(stmt.value.value, str)
+            ):
+                values[f"{node.name}.{target.id}"] = stmt.value.value
+    return values
+
+
+def _dotted(node: ast.AST) -> str | None:
+    """``GitTools.STATUS`` -> that text; anything more complex -> None."""
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+        return f"{node.value.id}.{node.attr}"
+    return None
+
+
+def _resolve_name(node: ast.AST | None, enums: dict[str, str]) -> str | None:
+    """A tool name from a literal, or from an enum member (with or without ``.value``)."""
+    literal = _literal(node)
+    if isinstance(literal, str) and literal:
+        return literal
+    # ``GitTools.STATUS.value`` — unwrap the ``.value`` access first.
+    if isinstance(node, ast.Attribute) and node.attr == "value":
+        node = node.value
+    dotted = _dotted(node) if node is not None else None
+    return enums.get(dotted) if dotted else None
+
+
+def _tool_from_call(node: ast.Call, source_path: str, enums: dict[str, str]) -> Tool | None:
+    """Build a Tool from a ``Tool(name=..., description=..., inputSchema=...)`` call."""
+    func = node.func
+    called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+    if called != "Tool":
+        return None
+
+    kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+    name = _resolve_name(kwargs.get("name"), enums)
+    if not name:
+        return None  # a tool we cannot name is a tool we cannot report on
+
+    schema_node = kwargs.get("inputSchema")
+    schema = _literal(schema_node)
+    return Tool(
+        name=name,
+        description=_literal(kwargs.get("description")),
+        input_schema=schema if isinstance(schema, dict) else {},
+        schema_unresolved=schema_node is not None and not isinstance(schema, dict),
+        source_path=source_path,
+        line=node.lineno,
+        # The low-level SDK dispatches every tool through one call_tool handler,
+        # so there are no per-tool parameters to compare the schema against.
+        # Leaving this None keeps MCP105 (schema/handler drift) from firing on
+        # an absence it cannot interpret.
+        handler_params=None,
+    )
+
+
+def _extract_list_tools(
+    func: ast.FunctionDef | ast.AsyncFunctionDef,
+    source_path: str,
+    enums: dict[str, str],
+) -> list[Tool]:
+    """Tools declared in the body of a ``@server.list_tools()`` handler.
+
+    The official Python servers (fetch, git, time) all use this shape rather
+    than FastMCP's ``@mcp.tool()``. Missing it meant they extracted as empty
+    servers and scored a flawless grade.
+    """
+    if not any(_decorator_is_list_tools(d) for d in func.decorator_list):
+        return []
+    tools: list[Tool] = []
+    for node in ast.walk(func):
+        if not isinstance(node, ast.Return) or not isinstance(node.value, ast.List):
+            continue
+        for element in node.value.elts:
+            if isinstance(element, ast.Call):
+                tool = _tool_from_call(element, source_path, enums)
+                if tool is not None:
+                    tools.append(tool)
+    return tools
+
+
 def _extract_file(path: Path, server: McpServer) -> None:
     text = path.read_text(encoding="utf-8")
     posix = path.as_posix()
@@ -218,11 +347,13 @@ def _extract_file(path: Path, server: McpServer) -> None:
         tree = ast.parse(text, filename=str(path))
     except SyntaxError:
         return  # unparseable file — leave to rules/CI to surface separately
+    enums = _enum_values(tree)
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             tool = _extract_function(node, posix)
             if tool is not None:
                 server.tools.append(tool)
+            server.tools.extend(_extract_list_tools(node, posix, enums))
 
 
 # --- project metadata (dependencies, lockfiles) for supply-chain rules -------
@@ -269,10 +400,17 @@ def _iter_source_files(root: Path, exts: tuple[str, ...]) -> list[Path]:
     Shared by the Python and TypeScript extractors (and by scope detection) so the
     skip-dir policy lives in one place.
     """
+    # Test trees are pruned on the way down, but scanned when the caller points
+    # straight at one (``--scope tests``). Filenames follow the same rule, so an
+    # explicit scope keeps surfacing what is inside.
+    scoped_into_tests = root.name in _SKIP_DIRS or _is_test_dir(root.name)
+
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not _is_test_dir(d)]
         for name in filenames:
+            if not scoped_into_tests and _is_test_file(name):
+                continue
             if name.endswith(exts):
                 files.append(Path(dirpath) / name)
     return sorted(files)

@@ -17,7 +17,13 @@ def render(
     lines: list[str] = []
     if score_result is not None:
         cap = "  [capped by error finding]" if score_result.capped else ""
-        lines.append(f"Score: {score_result.score}/100 (grade {score_result.grade}){cap}")
+        if doc is not None and doc.is_unanalysed:
+            lines.append(
+                "Not analysed: no tools, resources or prompts were found in this "
+                "source. No grade is reported — an unread server is not a safe one."
+            )
+        else:
+            lines.append(f"Score: {score_result.score}/100 (grade {score_result.grade}){cap}")
         lines.append(
             f"  {score_result.errors} error(s), "
             f"{score_result.warnings} warning(s), {score_result.infos} info"

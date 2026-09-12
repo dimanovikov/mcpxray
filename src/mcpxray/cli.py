@@ -36,6 +36,25 @@ app = typer.Typer(
 )
 
 
+def _version_option(value: bool) -> None:
+    if value:
+        typer.echo(__version__)
+        raise typer.Exit()
+
+
+@app.callback()
+def _main(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_option,
+        is_eager=True,
+        help="Print the mcpxray version and exit.",
+    ),
+) -> None:
+    """Static linter + 0-100 scorecard for MCP servers."""
+
+
 def _extract_doc(
     resolved: ResolvedSource, runtime_argv: list[str] | None, *, graceful: bool
 ) -> McpServer:
@@ -52,6 +71,14 @@ def _extract_doc(
         return ManifestExtractor().extract(resolved.manifest)
 
     if runtime_argv is not None:
+        # Runtime capture starts the server we are being asked to judge, here,
+        # with this user's privileges and network access. That trade is worth
+        # offering and not worth making quietly.
+        typer.echo(
+            "warning: --runtime executes the server being scanned, on this machine, "
+            "with your privileges. Run it in a container if you do not trust the source.",
+            err=True,
+        )
         captured = capture_tools(runtime_argv, cwd=resolved.path)
         return manifest_from_tools(
             captured.tools,
@@ -279,11 +306,18 @@ def score(
 ) -> None:
     """Print the 0-100 score and grade; exit 1 if below --fail-under."""
     try:
-        _doc, score_result = _run(target, manifest, scope, runtime, command, graceful=False)
+        doc, score_result = _run(target, manifest, scope, runtime, command, graceful=False)
     except SourceError as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=2) from None
     cap = "  [capped by error finding]" if score_result.capped else ""
+    if doc.is_unanalysed:
+        # Awarding a grade here would certify source the scanner never read.
+        typer.echo(
+            "not analysed: no tools, resources or prompts were found — no score",
+            err=True,
+        )
+        raise typer.Exit(code=2)
     typer.echo(f"score {score_result.score}/100 (grade {score_result.grade}){cap}")
     if not score_result.passed(fail_under):
         raise typer.Exit(code=1)

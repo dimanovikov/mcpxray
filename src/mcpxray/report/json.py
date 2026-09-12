@@ -15,11 +15,13 @@ def render(
     doc: McpServer | None = None,
     score_result: ScoreResult | None = None,
 ) -> str:
+    unanalysed = doc is not None and doc.is_unanalysed
     summary: dict[str, object] = {}
     if score_result is not None:
         summary = {
-            "score": score_result.score,
-            "grade": score_result.grade,
+            "score": None if unanalysed else score_result.score,
+            "grade": None if unanalysed else score_result.grade,
+            "analysed": not unanalysed,
             "errors": score_result.errors,
             "warnings": score_result.warnings,
             "infos": score_result.infos,
